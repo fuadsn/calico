@@ -68,8 +68,10 @@ class RepCounter(
     val exercise: Exercise,
     private val onRep: (Int) -> Unit,
     private val onCue: (String) -> Unit,
-    val holdSec: Int = exercise.holdSec,   // a level can ask for a longer or shorter hold
+    holdSec: Int = exercise.holdSec,   // a level can ask for a longer or shorter hold
 ) {
+    var holdSec = holdSec; private set
+    fun updateHoldTarget(seconds: Int) { require(exercise.holdSec>0 && seconds in 1..300); holdSec=seconds }
     var count = 0; private set
     var cues = 0; private set
     val done get() = holdSec > 0 && count >= holdSec
@@ -79,6 +81,9 @@ class RepCounter(
     private val window = FloatArray(3); private var n = 0
     // hold state
     private var lastT = -1L; private var heldMs = 0L; private var announced = 0; private var wasHeld = false
+
+    /** A paused session must not add hold time or complete a half-rep on resume. */
+    fun suspendTiming() { lastT=-1L; wasHeld=false; n=0; isDown=false; minAngle=180f }
 
     fun feed(rawAngle: Float, timeMs: Long) {
         window[n++ % window.size] = rawAngle

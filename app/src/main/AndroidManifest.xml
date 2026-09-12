@@ -10,10 +10,12 @@
     <uses-feature android:name="android.hardware.camera" android:required="true" />
 
     <application
+        android:name=".voice.CalicoApplication"
         android:label="Calico"
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:theme="@android:style/Theme.Material.NoActionBar">
+        <activity android:name=".voice.VoiceAgentActivity" android:exported="false" />
         <activity android:name=".CoachActivity" android:exported="false" />
         <activity android:name=".MainActivity" android:exported="true">
             <intent-filter>

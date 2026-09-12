@@ -43,6 +43,10 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.SkipNext
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.Icon
@@ -117,31 +121,112 @@ class WorkoutActivity : ComponentActivity() {
     private var videoCapture: VideoCapture<Recorder>? = null
     private var recording: Recording? = null
     private lateinit var landmarker: PoseLandmarker
+    private val poseLock=Any()
+    @Volatile private var closingPose=false
     private lateinit var tts: TextToSpeech
     private lateinit var counter: RepCounter          // single side, or the left side in SUM mode
     private var counterR: RepCounter? = null          // SUM mode: the right side; totals reported via total()
     private fun total() = counter.count + (counterR?.count ?: 0)
     private fun totalCues() = counter.cues + (counterR?.cues ?: 0)
+    private var coachSession=java.util.UUID.randomUUID().toString()
+    private var coachSegment = -1
+    private val coachFrames=java.util.concurrent.atomic.AtomicInteger()
+    private val coachTracked=java.util.concurrent.atomic.AtomicInteger()
     private var coachMin: Float? = null
     private var coachMax: Float? = null
     private val coachCues = linkedMapOf<String,Int>()
 
-    private fun saveCoachSnapshot() {
-        if(bench || !::counter.isInitialized || coachMin==null) return
+    private fun saveCoachSnapshot(completed: Boolean=false) {
+        if(bench || !::counter.isInitialized) return
         com.hackathon.calico.coach.CoachStore(this).save(com.hackathon.calico.coach.CoachSnapshot(
             counter.exercise.name,total(),steps[stepIndex].target.takeIf { it!=Int.MAX_VALUE },
-            counter.exercise.holdSec>0,coachCues.toMap(),coachMin,coachMax,System.currentTimeMillis()))
+            counter.exercise.holdSec>0,coachCues.toMap(),coachMin,coachMax,System.currentTimeMillis(),
+            coachSession,coachSegment,coachFrames.get(),coachTracked.get(),completed))
     }
     private val analyzerExecutor = Executors.newSingleThreadExecutor()
     private val ui = Handler(Looper.getMainLooper())
 
     // routine
-    private lateinit var steps: List<Step>
+    private var steps by mutableStateOf<List<Step>>(emptyList())
     private val bench get() = intent.hasExtra("video")
-    private val startedAt = SystemClock.uptimeMillis()
+    private var startedAt = SystemClock.uptimeMillis()
+    private var voiceOrbOpen by mutableStateOf(false)
+    fun openVoiceOrb() {
+        if(bench || voiceOrbOpen) return
+        saveCoachSnapshot(); tts.stop(); voiceOrbOpen=true
+    }
+    fun closeVoiceOrb() { voiceOrbOpen=false }
+    fun voiceTarget(target: Int, unit: String): String {
+        if(bench || phase==Phase.DONE) return "Start an active exercise before changing its target."
+        if(phase==Phase.REST || (phase==Phase.PAUSED && pausedFrom==Phase.REST)) return "Skip rest or wait for the next exercise before changing its target."
+        val hold=counter.exercise.holdSec>0
+        if((unit=="seconds")!=hold) return if(hold) "This is a timed hold. Say set hold time to thirty seconds." else "This exercise counts reps. Say set reps to twenty."
+        if(target !in 1..300 || target<=total()) return "Choose a target above the ${total()} already completed, up to 300."
+        steps=steps.toMutableList().also { it[stepIndex]=it[stepIndex].copy(target=target) }
+        if(hold) { counter.updateHoldTarget(target); counterR?.updateHoldTarget(target) }
+        saveCoachSnapshot()
+        return "Target set to $target ${if(hold) "seconds" else "reps"}. Your count is unchanged."
+    }
+    fun voiceExercise(exercise: Exercise, target: Int?, start: Boolean=false): String {
+        if(bench || phase==Phase.DONE) return "Restart the workout before changing exercises."
+        if(recordingNow) return "Stop recording before changing exercises."
+        val nextTarget=target ?: if(exercise.holdSec>0) exercise.holdSec else 10
+        if(nextTarget !in 1..300) return "Choose a target between 1 and 300."
+        val keepPaused=phase==Phase.PAUSED && !start
+        saveCoachSnapshot()
+        steps=steps.toMutableList().also { it[stepIndex]=Step(exercise,nextTarget) }
+        setStep(stepIndex)
+        if(keepPaused) { pausedFrom=Phase.RUNNING; phase=Phase.PAUSED }
+        return "Changed to ${exercise.label}, $nextTarget ${if(exercise.holdSec>0) "seconds" else "reps"}.${if(keepPaused) " Still paused." else " Starting from zero."}"
+    }
 
     // observable UI state
     private var phase by mutableStateOf(Phase.RUNNING)
+    private var pausedFrom = Phase.RUNNING
+    private var restGeneration = 0
+    private var pendingVoiceRecording: String? = null
+    fun voiceControl(action: String): String {
+        if(bench) return "Voice controls are unavailable during a benchmark."
+        when(action) {
+            "pause" -> {
+                if(phase==Phase.DONE) return "This workout has finished."
+                if(phase!=Phase.PAUSED) {
+                    pausedFrom=phase; phase=Phase.PAUSED; saveCoachSnapshot()
+                    counter.suspendTiming(); counterR?.suspendTiming()
+                }
+                return "Workout paused."
+            }
+            "resume" -> { if(phase==Phase.PAUSED) phase=pausedFrom; return if(phase==Phase.DONE) "This workout has finished." else "Workout running." }
+            "skip" -> {
+                if(phase==Phase.DONE) return "This workout has finished."
+                if(phase==Phase.REST || (phase==Phase.PAUSED && pausedFrom==Phase.REST)) setStep(stepIndex+1)
+                else { phase=Phase.RUNNING; advance() }
+                return "Moving to the next step."
+            }
+            "end" -> { if(phase==Phase.DONE) return "This workout has finished."; voiceControl("pause"); return "Workout stopped and saved. Say start to continue, or restart to begin again." }
+            "restart", "restart_session" -> {
+                if(recordingNow) return "Stop recording before restarting."
+                saveCoachSnapshot()
+                val wasDone=phase==Phase.DONE
+                if(action=="restart_session" || wasDone) {
+                    coachSession=java.util.UUID.randomUUID().toString(); coachSegment=-1
+                    results.clear(); startedAt=SystemClock.uptimeMillis(); setStep(0)
+                } else setStep(stepIndex)
+                if(wasDone) startCamera()
+                return if(action=="restart_session" || wasDone) "Workout restarted." else "This exercise restarted from zero."
+            }
+            "status" -> return "${counter.exercise.label}: ${total()} of ${steps[stepIndex].target} ${if(counter.exercise.holdSec>0) "seconds" else "reps"}. ${if(phase==Phase.PAUSED) "Paused." else if(phase==Phase.REST) "Resting." else if(phase==Phase.DONE) "Finished." else "Running."}"
+            "record", "record_stop" -> {
+                if(!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) {
+                    pendingVoiceRecording=action
+                    return "Returning to the workout to update recording."
+                }
+                if((action=="record")!=recordingNow) toggleRecord()
+                return if(recordingNow) "Recording started." else "Recording stopped."
+            }
+        }
+        return "That control is unavailable."
+    }
     private var stepIndex by mutableIntStateOf(0)
     private var count by mutableIntStateOf(0)
     private var cue by mutableStateOf<Pair<String, Long>?>(null)   // text + id so the same cue can re-fire
@@ -182,7 +267,9 @@ class WorkoutActivity : ComponentActivity() {
     // ---------- routine flow ----------
 
     private fun setStep(i: Int) {
-        coachMin=null; coachMax=null; coachCues.clear()
+        restGeneration++
+        coachSegment++
+        coachMin=null; coachMax=null; coachCues.clear(); coachFrames.set(0); coachTracked.set(0)
         stepIndex = i
         count = 0
         val s = steps[i]
@@ -208,40 +295,67 @@ class WorkoutActivity : ComponentActivity() {
 
     private fun advance() {
         if (phase != Phase.RUNNING) return
+        saveCoachSnapshot(completed=true)
         results += steps[stepIndex] to count
         if (stepIndex == steps.lastIndex) {
             phase = Phase.DONE
             cameraProvider?.unbindAll()   // camera + model idle on the summary screen
             if (!bench) {
                 val p = Progress(this)
-                streakBefore = p.streak; p.recordWorkout(); streakAfter = p.streak
+                streakBefore = p.streak; p.recordWorkout(
+                    reps = results.filter { it.first.exercise.holdSec == 0 }.sumOf { it.second },
+                    secs = ((SystemClock.uptimeMillis() - startedAt) / 1000).toInt(),
+                    kcal = results.sumOf { kcalOf(it.first, it.second).toDouble() }.toInt()
+                ); streakAfter = p.streak
             }
             say("Workout complete")
             return
         }
         phase = Phase.REST
         restLeft = 5
+        val restTicket=++restGeneration
         say("Nice. Next up, ${steps[stepIndex + 1].exercise.label}")
         fun tick() {
+            if(restTicket!=restGeneration) return
+            if(phase==Phase.PAUSED && pausedFrom==Phase.REST) { ui.postDelayed(::tick,1000); return }
             if (phase != Phase.REST) return
             if (restLeft <= 1) setStep(stepIndex + 1) else { restLeft--; ui.postDelayed(::tick, 1000) }
         }
         ui.postDelayed(::tick, 1000)
     }
 
-    private fun say(text: String) = tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, text)
+    private fun say(text: String) { if(!voiceOrbOpen) tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, text) }
 
     // ---------- UI ----------
 
     @Composable
     private fun Screen() {
+        com.hackathon.calico.voice.VoiceActionBindings(buildMap {
+            if(phase!=Phase.DONE && !bench) {
+                put("Pause") { voiceControl("pause") }
+                put("Play") { voiceControl("resume") }
+                put("Resume") { voiceControl("resume") }
+                put("Skip") { voiceControl("skip") }
+                put("Next") { voiceControl("skip") }
+                put("Record") { voiceControl("record") }
+                put("Stop recording") { voiceControl("record_stop") }
+            }
+            put("Done",::finish)
+            put("Ask offline coach") { saveCoachSnapshot(); startActivity(Intent(this@WorkoutActivity,CoachActivity::class.java).putExtra("question","Review my whole last workout.")) }
+        })
         Box(Modifier.fillMaxSize().background(Bg)) {
-            if (phase == Phase.DONE && !bench) { Complete(); return@Box }
-            if (bench) benchFrame?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
-            else AndroidView({ previewView }, Modifier.fillMaxSize())
-            AndroidView({ overlay }, Modifier.fillMaxSize())
-            Hud()
-            if (phase == Phase.REST) Rest()
+            if (phase == Phase.DONE && !bench) Complete()
+            else {
+                if (bench) benchFrame?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
+                else AndroidView({ previewView }, Modifier.fillMaxSize())
+                AndroidView({ overlay }, Modifier.fillMaxSize())
+                Hud()
+                if (phase == Phase.REST) Rest()
+                if (!bench && phase != Phase.REST) FloatingBar(Modifier.align(Alignment.BottomCenter))
+            }
+            if(voiceOrbOpen) com.hackathon.calico.voice.WorkoutVoiceOrb(
+                modifier=Modifier.align(Alignment.CenterEnd).padding(end=12.dp),
+                onDismiss=::closeVoiceOrb)
         }
     }
 
@@ -266,11 +380,6 @@ class WorkoutActivity : ComponentActivity() {
                     )
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(
-                        Modifier.size(52.dp).background(Snow, CircleShape).clickable { phase = if (phase == Phase.PAUSED) Phase.RUNNING else Phase.PAUSED },
-                        contentAlignment = Alignment.Center,
-                    ) { Icon(if (phase == Phase.PAUSED) Icons.Outlined.PlayArrow else Icons.Outlined.Pause, "pause", tint = Charcoal) }
-                    Spacer(Modifier.height(14.dp))
                     Column(Modifier.background(Snow, Pill).padding(horizontal = 14.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(if (open) "$count" else "$count / $target", style = MaterialTheme.typography.titleMedium, color = Charcoal)
                         Text(if (hold) "seconds" else "reps", style = MaterialTheme.typography.labelSmall, color = Slate)
@@ -293,7 +402,7 @@ class WorkoutActivity : ComponentActivity() {
             }
             benchDone?.let { Text(it, Modifier.align(Alignment.CenterHorizontally).padding(8.dp), style = MaterialTheme.typography.titleMedium, color = Accent) }
             // bottom sheet
-            Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)).padding(24.dp).navigationBarsPadding()) {
+            Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)).padding(24.dp).navigationBarsPadding().padding(bottom = if (bench) 0.dp else 84.dp)) {
                 Box(Modifier.align(Alignment.CenterHorizontally).size(width = 40.dp, height = 4.dp).background(Line, Pill))
                 Spacer(Modifier.height(18.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -303,8 +412,8 @@ class WorkoutActivity : ComponentActivity() {
                     }
                     Text(
                         if (hold) "${count}s" else "$count",
-                        style = MaterialTheme.typography.displayLarge, color = Snow,
-                        modifier = Modifier.background(Slate, TileShape).padding(horizontal = 24.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.displayLarge, color = OnAccent,
+                        modifier = Modifier.background(Accent, TileShape).padding(horizontal = 24.dp, vertical = 4.dp),
                     )
                     Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
                         Text("Step", style = MaterialTheme.typography.labelMedium, color = Muted)
@@ -319,14 +428,29 @@ class WorkoutActivity : ComponentActivity() {
                             Modifier.clickable(onClick = ::toggleRecord).padding(8.dp),
                             style = MaterialTheme.typography.labelMedium, color = if (recordingNow) Accent else Muted,
                         )
-                        Spacer(Modifier.weight(1f))
-                        if (!open) Text(
-                            if (stepIndex == steps.lastIndex) "FINISH" else "SKIP",
-                            Modifier.background(Snow, Pill).clickable(onClick = ::advance).padding(horizontal = 26.dp, vertical = 14.dp),
-                            style = MaterialTheme.typography.labelLarge, color = Charcoal,
-                        )
+
                     }
                 }
+            }
+        }
+    }
+
+    /** Incoming control styling, retaining the local workout actions and target rules. */
+    @Composable
+    private fun FloatingBar(modifier: Modifier) {
+        val open = steps[stepIndex].target == Int.MAX_VALUE
+        val items = buildList<Pair<ImageVector, String>> {
+            add(Icons.AutoMirrored.Outlined.ArrowBack to "Back")
+            add((if (phase == Phase.PAUSED) Icons.Outlined.PlayArrow else Icons.Outlined.Pause) to
+                (if (phase == Phase.PAUSED) "Resume" else "Pause"))
+            if (!open) add((if (stepIndex == steps.lastIndex) Icons.Outlined.Check else Icons.Outlined.SkipNext) to
+                (if (stepIndex == steps.lastIndex) "Finish" else "Skip"))
+        }
+        BumpBar(items, if (phase == Phase.PAUSED || open) 1 else 2, modifier) { i ->
+            when (i) {
+                0 -> finish()
+                1 -> voiceControl(if (phase == Phase.PAUSED) "resume" else "pause")
+                else -> advance()
             }
         }
     }
@@ -362,7 +486,11 @@ class WorkoutActivity : ComponentActivity() {
         ) {
             Spacer(Modifier.height(24.dp))
             Text("Great Work!", style = MaterialTheme.typography.bodyLarge, color = Muted)
-            Text("Workout Complete 🔥", style = MaterialTheme.typography.displayMedium, color = Ink, textAlign = TextAlign.Center)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Workout Complete", style = MaterialTheme.typography.displayMedium, color = Ink, textAlign = TextAlign.Center)
+                Spacer(Modifier.width(10.dp))
+                Icon(Lucide.Flame, null, tint = Accent, modifier = Modifier.size(34.dp))
+            }
             Spacer(Modifier.height(20.dp))
             // semicircle gauge
             Box(Modifier.size(260.dp, 150.dp), contentAlignment = Alignment.BottomCenter) {
@@ -382,7 +510,7 @@ class WorkoutActivity : ComponentActivity() {
             }
             Spacer(Modifier.height(20.dp))
             Row(Modifier.fillMaxWidth().background(Accent, Pill).padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("🔥", fontSize = 22.sp)
+                Icon(Lucide.Flame, null, tint = OnAccent, modifier = Modifier.size(22.dp))
                 Spacer(Modifier.width(12.dp))
                 Text(
                     "${if (streak == 0) streakBefore else streak} day streak" + if (streakAfter > streakBefore) "  ·  +1" else "",
@@ -422,11 +550,14 @@ class WorkoutActivity : ComponentActivity() {
                 style = MaterialTheme.typography.labelLarge, color = Charcoal, textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(12.dp))
+            Text("Form overview",style=MaterialTheme.typography.titleLarge,color=Ink)
+            Text(com.hackathon.calico.coach.CoachStore(this@WorkoutActivity).overview(coachSession),
+                style=MaterialTheme.typography.bodyMedium,color=Ink,modifier=Modifier.padding(vertical=12.dp))
             Text("ASK OFFLINE COACH",style=MaterialTheme.typography.labelLarge,color=OnAccent,
                 textAlign=TextAlign.Center,modifier=Modifier.fillMaxWidth().background(Accent,Pill).clickable {
                     saveCoachSnapshot()
                     startActivity(Intent(this@WorkoutActivity,CoachActivity::class.java)
-                        .putExtra("question","Explain my latest recorded form cues and what to check next."))
+                        .putExtra("question","Review my whole last workout: what went well, which cues repeated, and one thing to focus on next."))
                 }.padding(vertical=20.dp))
             Spacer(Modifier.height(8.dp))
         }
@@ -446,6 +577,7 @@ class WorkoutActivity : ComponentActivity() {
     private fun startCamera() {
         val future = ProcessCameraProvider.getInstance(this)
         future.addListener({
+            if(isFinishing || isDestroyed || closingPose) return@addListener
             val provider = future.get().also { cameraProvider = it }
             val preview = Preview.Builder().build().also { it.surfaceProvider = previewView.surfaceProvider }
             val analysis = ImageAnalysis.Builder()
@@ -464,11 +596,14 @@ class WorkoutActivity : ComponentActivity() {
     }
 
     private fun analyze(image: ImageProxy) {
+        if(closingPose) { image.close(); return }
         val bitmap = image.use { it.toBitmap() }
         // rotate to upright and mirror (front camera) so the overlay matches the preview
         val m = Matrix().apply { postRotate(image.imageInfo.rotationDegrees.toFloat()); postScale(-1f, 1f) }
         val upright = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, m, true)
-        landmarker.detectAsync(BitmapImageBuilder(upright).build(), SystemClock.uptimeMillis())
+        synchronized(poseLock) {
+            if(!closingPose) landmarker.detectAsync(BitmapImageBuilder(upright).build(), SystemClock.uptimeMillis())
+        }
     }
 
     // ---------- bench: replay a video file ----------
@@ -579,19 +714,21 @@ class WorkoutActivity : ComponentActivity() {
     }
 
     private fun onPose(result: PoseLandmarkerResult, w: Int, h: Int) {
+        if(phase==Phase.RUNNING) coachFrames.incrementAndGet()
         val pose = result.landmarks().firstOrNull()
         overlay.update(pose ?: emptyList(), w, h)
         if (pose == null || phase != Phase.RUNNING || counter.done) return
-        val e = counter.exercise
+        val leftCounter = counter
+        val rightCounter = counterR
+        val e = leftCounter.exercise
         val points = FloatArray(99) { n -> val j = pose[n / 3]
             when (n % 3) { 0 -> j.x(); 1 -> j.y(); else -> j.z() } }
         val sample = PoseAngles.select(e, points, FloatArray(33) { pose[it].visibility().orElse(0f) }) ?: return
+        coachTracked.incrementAndGet()
         val t = result.timestampMs()
         benchLog?.println("t=$t l=${sample.left} r=${sample.right}")
-        val leftCounter = counter
-        val rightCounter = counterR
         ui.post {
-            if (counter !== leftCounter || phase != Phase.RUNNING) return@post
+            if (counter !== leftCounter || counterR !== rightCounter || phase != Phase.RUNNING) return@post
             listOfNotNull(sample.left,sample.right).forEach { value ->
                 coachMin=minOf(coachMin ?: value,value)
                 coachMax=maxOf(coachMax ?: value,value)
@@ -601,13 +738,25 @@ class WorkoutActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        pendingVoiceRecording?.let { action -> pendingVoiceRecording=null; ui.postDelayed({ if(!isFinishing) voiceControl(action) },500) }
+    }
+
+    override fun onPause() {
+        closeVoiceOrb()
+        if(!bench && ::counter.isInitialized && phase!=Phase.DONE) voiceControl("pause")
+        super.onPause()
+    }
+
     override fun onDestroy() {
+        closingPose=true
         saveCoachSnapshot()
         super.onDestroy()
         ui.removeCallbacksAndMessages(null)
         recording?.stop()
         analyzerExecutor.shutdown()
-        landmarker.close()
+        synchronized(poseLock) { if(::landmarker.isInitialized) landmarker.close() }
         tts.shutdown()
     }
 }

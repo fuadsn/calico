@@ -1,0 +1,86 @@
+package com.hackathon.calico
+
+import com.hackathon.calico.voice.VoiceCommands
+import org.junit.Assert.*
+import org.junit.Test
+
+class VoiceCommandTest {
+    @Test fun conversationalControlsUseSensibleDefaults() {
+        for(text in listOf("stop the workout", "Can you please stop my workout now", "finish this session", "I want to stop the workout"))
+            assertEquals(text,"end",VoiceCommands.parse(text)?.action)
+        for(text in listOf("start a workout", "please just start any workout", "can you begin a session for me", "let's start working out"))
+            assertEquals(text,"today",VoiceCommands.parse(text)?.action)
+        assertEquals("pause",VoiceCommands.parse("hold on")?.action)
+        assertEquals("resume",VoiceCommands.parse("keep going")?.action)
+        assertEquals("skip",VoiceCommands.parse("next one")?.action)
+        assertNull(VoiceCommands.parse("please don't stop the workout"))
+        assertNull(VoiceCommands.parse("how do I start a workout"))
+        assertEquals("pause",VoiceCommands.parse("press the pause button")?.action)
+        assertEquals("overview",VoiceCommands.similarLabel("overveiw",setOf("overview","scan","voice")))
+        assertNull(VoiceCommands.similarLabel("cleer",setOf("clear")))
+        assertNull(VoiceCommands.similarLabel("rate",setOf("late","date")))
+    }
+    @Test fun workoutOrbEditsAreExplicitAndBounded() {
+        assertEquals("restart",VoiceCommands.parse("restart exercise")!!.action)
+        assertEquals("restart_session",VoiceCommands.parse("restart workout")!!.action)
+        assertEquals("resume",VoiceCommands.parse("start")!!.action)
+        val target=VoiceCommands.parse("change rep count to twenty five")!!
+        assertEquals("target",target.action); assertEquals(25,target.target)
+        assertEquals("seconds",VoiceCommands.parse("set hold time to thirty seconds")!!.label)
+        assertEquals(120,VoiceCommands.parse("set target to two minutes")!!.target)
+        assertEquals("invalid",VoiceCommands.parse("set reps to zero")!!.action)
+        assertEquals("invalid",VoiceCommands.parse("set reps to 9999999999999")!!.action)
+        val change=VoiceCommands.parse("change workout type to incline pushups")!!
+        assertEquals("change_exercise",change.action); assertEquals(Exercise.INCLINE_PUSHUP,change.exercise)
+        assertEquals(Exercise.SQUAT,VoiceCommands.parse("switch to squats")!!.exercise)
+        assertEquals("invalid",VoiceCommands.parse("switch to squats and lunges")!!.action)
+        assertNull(VoiceCommands.parse("should I change my rep count"))
+    }
+    @Test fun changingHoldTargetPreservesTimeAlreadyHeld() {
+        val hold=RepCounter(Exercise.PLANK,{}, {},holdSec=30)
+        repeat(11) { hold.feed(170f,it*500L) }
+        assertEquals(5,hold.count)
+        hold.updateHoldTarget(45)
+        assertEquals(5,hold.count); assertEquals(45,hold.holdSec)
+        hold.feed(170f,5500)
+        hold.feed(170f,6000)
+        assertEquals(6,hold.count)
+    }
+    @Test fun spokenTargetsAndSpecificExercises() {
+        val squat=VoiceCommands.parse("Calico, please start twenty five squats")!!
+        assertEquals(Exercise.SQUAT,squat.exercise)
+        assertEquals(25,squat.target)
+        assertEquals(Exercise.INCLINE_PUSHUP,VoiceCommands.parse("start ten incline push ups")!!.exercise)
+        assertEquals(Exercise.PIKE_PUSHUP,VoiceCommands.parse("start pike pushups")!!.exercise)
+        assertEquals(30,VoiceCommands.parse("start plank for thirty seconds")!!.target)
+        assertEquals(60,VoiceCommands.parse("start plank for one minute")!!.target)
+        assertEquals("invalid",VoiceCommands.parse("start squats for thirty seconds")!!.action)
+        assertEquals("invalid",VoiceCommands.parse("start 999999999999 squats")!!.action)
+        for(e in Exercise.entries) assertEquals(e,VoiceCommands.parse("start ${e.name.replace('_',' ')}")!!.exercise)
+    }
+    @Test fun controlsAreExplicitAndQuestionsAreNotCommands() {
+        assertEquals("pause",VoiceCommands.parse("pause workout")!!.action)
+        assertEquals("resume",VoiceCommands.parse("play")!!.action)
+        assertEquals("skip",VoiceCommands.parse("skip rest")!!.action)
+        assertNull(VoiceCommands.parse("Should I pause during squats?"))
+        assertNull(VoiceCommands.parse("Don't start a workout"))
+        assertEquals("invalid",VoiceCommands.parse("start 0 squats")!!.action)
+        assertEquals("invalid",VoiceCommands.parse("start 9999 squats")!!.action)
+        assertEquals("invalid",VoiceCommands.parse("start 10 squats and 20 pushups")!!.action)
+        assertEquals("invalid",VoiceCommands.parse("start squats and pushups")!!.action)
+        assertEquals("demo",VoiceCommands.parse("show jumping jacks")!!.action)
+        assertEquals("level",VoiceCommands.parse("start Floor Basics")!!.action)
+    }
+    @Test fun pauseDoesNotCountElapsedHoldTimeOrAnUnfinishedRep() {
+        val hold=RepCounter(Exercise.PLANK,{}, {})
+        hold.feed(170f,0); hold.feed(170f,500)
+        hold.suspendTiming()
+        hold.feed(170f,20000)
+        assertEquals(0,hold.count)
+        val reps=RepCounter(Exercise.SQUAT,{}, {})
+        reps.feed(80f,0)
+        reps.suspendTiming()
+        repeat(3) { reps.feed(180f,10000L+it*100) }
+        assertEquals(0,reps.count)
+    }
+}

@@ -59,7 +59,7 @@ Java_com_hackathon_calico_coach_NativeCoach_nativeLoad(JNIEnv * env, jobject, js
         cp.n_batch = 128;
         cp.n_ubatch = 128;
         cp.n_threads = 4;
-        cp.n_threads_batch = 4;
+        cp.n_threads_batch = 6;
         cp.offload_kqv = false;
         cp.abort_callback = abort_decode;
         cp.abort_callback_data = session.get();

@@ -26,6 +26,10 @@ import java.util.Date
 
 class CoachActivity : ComponentActivity() {
     private lateinit var coach: CoachViewModel
+    private fun sendMessage(text: String) {
+        val result=com.hackathon.calico.voice.VoiceAgent.dispatch(this,text)
+        if(result!=null) coach.recordAction(text,result) else coach.send(text)
+    }
     private val importer = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { coach.import(it) } }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -36,9 +40,39 @@ class CoachActivity : ComponentActivity() {
             var draft by rememberSaveable { mutableStateOf(intent.getStringExtra("question") ?: "") }
             var setup by rememberSaveable { mutableStateOf(false) }
             var about by remember { mutableStateOf(false) }
+            var overview by remember { mutableStateOf(false) }
+            com.hackathon.calico.voice.VoiceActionBindings(buildMap {
+                put("Back",::finish)
+                put("About & licenses") { about=true }
+                put("Workout overview") { overview=true }
+                if(!state.busy) {
+                    put("Clear",coach::clear)
+                    put("Model setup") { setup=true }
+                    put("Hide setup") { setup=false }
+                    put("Forget",coach::forgetWorkout)
+                    if(setup) put("Forget saved room",coach::clearRoom)
+                    if(!state.ready || setup) {
+                        put("Download offline coach",coach::download)
+                        put("Import model file") { importer.launch(arrayOf("*/*")) }
+                    }
+                    if(state.ready) {
+                        put("Explain my cues") { coach.send("Explain my latest recorded form cues and what I should check next.") }
+                        if(draft.isNotBlank()) put("Send") { sendMessage(draft); draft="" }
+                    }
+                } else put("Stop",coach::stop)
+                if(overview) {
+                    put("Close") { overview=false }
+                    put("Ask coach") { overview=false; coach.send("Review my whole last workout and the repeated cues. What should I focus on next?") }
+                }
+                if(about) put("Done") { about=false }
+            })
+            if(overview) AlertDialog(onDismissRequest={ overview=false },title={ Text("Workout overview") },
+                text={ Text(state.overview,modifier=Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState())) },
+                confirmButton={ TextButton(onClick={ overview=false; coach.send("Review my whole last workout and the repeated cues. What should I focus on next?") }) { Text("Ask coach") } },
+                dismissButton={ TextButton(onClick={ overview=false }) { Text("Close") } })
             if (about) AlertDialog(onDismissRequest={ about=false },
                 title={ Text("About offline coach") },
-                text={ Text(remember { "Exercise guidance: ${CoachKnowledge.SOURCE_URL}\n\n" + assets.open("licenses/offline-coach.txt").bufferedReader().use { it.readText() } },
+                text={ Text(remember { "Exercise guidance: ${CoachKnowledge.SOURCE_URL}\n\n" + listOf("offline-coach.txt","sherpa-onnx.txt","onnxruntime.txt").joinToString("\n\n") { name -> assets.open("licenses/$name").bufferedReader().use { it.readText() } } },
                     modifier=Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState())) },
                 confirmButton={ TextButton(onClick={ about=false }) { Text("Done") } })
             val list=rememberLazyListState()
@@ -58,14 +92,20 @@ class CoachActivity : ComponentActivity() {
                     TextButton(onClick={ setup=!setup },enabled=!state.busy) { Text(if(setup) "Hide setup" else "Model setup") }
                     TextButton(onClick={ about=true }) { Text("About & licenses") }
                 }
+                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
+                    TextButton(onClick={ overview=true }) { Text("Workout overview") }
+                    TextButton(onClick=coach::analyzeRoom,enabled=state.ready && !state.busy) { Text("Analyze room") }
+                }
+                if(state.arPlan!=null) Button(onClick={ coach.applyRoomPlan()?.let(::startActivity) },enabled=!state.busy) { Text("Preview proposal in AR") }
+                if(setup) TextButton(onClick=coach::clearRoom,enabled=!state.busy) { Text("Forget saved room") }
                 if(!state.ready || setup) {
                     Column(Modifier.fillMaxWidth().background(Charcoal,CardShape).padding(20.dp)) {
                         Text("Meet your offline coach",style=MaterialTheme.typography.titleLarge)
-                        Text("Ask exercise questions and understand your saved form cues. Download the 1.28 GB model once, or import it from storage. Keep this screen open during setup.",Modifier.padding(vertical=12.dp))
+                        Text("Ask exercise questions and understand your saved form cues. Download the 2.50 GB model once, or import it from storage. Keep this screen open during setup.",Modifier.padding(vertical=12.dp))
                         Button(onClick=coach::download,enabled=!state.busy,modifier=Modifier.fillMaxWidth(),
                             colors=ButtonDefaults.buttonColors(containerColor=Accent),shape=Pill) { Text("Download offline coach") }
                         OutlinedButton(onClick={ importer.launch(arrayOf("*/*")) },enabled=!state.busy,modifier=Modifier.fillMaxWidth(),shape=Pill) { Text("Import model file") }
-                        Text("Qwen3-1.7B · Apache 2.0",style=MaterialTheme.typography.labelSmall,color=Muted)
+                        Text("Qwen3-4B Instruct · Apache 2.0",style=MaterialTheme.typography.labelSmall,color=Muted)
                     }
                 }
                 state.snapshot?.let { s ->
@@ -100,7 +140,7 @@ class CoachActivity : ComponentActivity() {
                     OutlinedTextField(value=draft,onValueChange={ draft=it.take(500) },modifier=Modifier.weight(1f),
                         enabled=state.ready && !state.busy,maxLines=3,placeholder={ Text("Ask your coach") },shape=TileShape)
                     Spacer(Modifier.width(8.dp))
-                    Button(onClick={ if(state.busy) coach.stop() else { coach.send(draft); draft="" } },
+                    Button(onClick={ if(state.busy) coach.stop() else { sendMessage(draft); draft="" } },
                         enabled=state.busy || (state.ready && draft.isNotBlank()),shape=Pill,
                         colors=ButtonDefaults.buttonColors(containerColor=Accent)) { Text(if(state.busy) "Stop" else "Send") }
                 }

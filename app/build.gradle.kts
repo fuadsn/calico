@@ -1,3 +1,7 @@
+import java.io.File
+import java.net.URI
+import java.security.MessageDigest
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -35,7 +39,27 @@ android {
     androidResources { noCompress += "task" }
 }
 
+val wakeLibrary = rootProject.layout.buildDirectory.file("voice-deps/sherpa.aar")
+val prepareWakeLibrary by tasks.registering {
+    outputs.file(wakeLibrary)
+    doLast {
+        val file = wakeLibrary.get().asFile
+        file.parentFile.mkdirs()
+        val temp = File(file.parentFile, "sherpa.download")
+        if(file.exists()) {
+            val existing=MessageDigest.getInstance("SHA-256").digest(file.readBytes()).joinToString("") { "%02x".format(it) }
+            if(existing=="633c24321e06b1fe79feafa03ea16cbc0f8a286641e2da3559bac91bdb13bd96") return@doLast
+        }
+        URI("https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.8/sherpa-onnx-1.13.8.aar").toURL().openStream().use { input -> temp.outputStream().use { input.copyTo(it) } }
+        val hash = MessageDigest.getInstance("SHA-256").digest(temp.readBytes()).joinToString("") { "%02x".format(it) }
+        check(hash == "633c24321e06b1fe79feafa03ea16cbc0f8a286641e2da3559bac91bdb13bd96") { "Wake library checksum mismatch" }
+        temp.copyTo(file, overwrite = true)
+        temp.delete()
+    }
+}
+
 dependencies {
+    implementation(files(wakeLibrary).builtBy(prepareWakeLibrary))
     val camerax = "1.6.2"
     implementation("androidx.camera:camera-core:$camerax")
     implementation("androidx.camera:camera-camera2:$camerax")

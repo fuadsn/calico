@@ -4,12 +4,17 @@ package com.hackathon.calico.coach
 class NativeCoach : AutoCloseable {
     private val lock = Any()
     private var handle = 0L
+    private var legacyThinkingTemplate = false
     fun load(path: String) {
         check(synchronized(lock) { handle == 0L })
         val loaded = nativeLoad(path)
+        legacyThinkingTemplate=path.endsWith("Qwen3-1.7B-Q4_K_M.gguf")
         synchronized(lock) { handle = loaded }
     }
-    fun start(prompt: String) = nativeStart(synchronized(lock) { handle }, prompt.toByteArray(Charsets.UTF_8))
+    fun start(prompt: String) {
+        val adapted=if(legacyThinkingTemplate && prompt.endsWith("<|im_start|>assistant\n")) prompt+"<think>\n\n</think>\n\n" else prompt
+        nativeStart(synchronized(lock) { handle }, adapted.toByteArray(Charsets.UTF_8))
+    }
     fun next(): ByteArray? = nativeNext(synchronized(lock) { handle })
     fun cancel() = synchronized(lock) { if (handle != 0L) nativeCancel(handle) }
     override fun close() {

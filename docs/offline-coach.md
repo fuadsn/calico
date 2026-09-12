@@ -1,5 +1,7 @@
 # Offline coach
 
+Current voice routing and the Qwen3-4B upgrade are documented in [Voice and model update](voice-model-update.md). The 1.7B configuration and timings below are historical and remain relevant to the fallback model.
+
 Open **Offline coach → Open coach** on Home. Typed questions run locally after
 the model is installed. **Explain my cues** uses the latest saved exercise's
 rep/hold count, target, detector cue frequencies and estimated joint-angle range.
@@ -27,8 +29,10 @@ from the beginning. Use **Model setup** to replace a damaged model. At least
 1.5 GB free storage is recommended for initial setup (replacement needs space
 for both files). The model is excluded from Android backup.
 
-Chat stays in memory and can be cleared. Only the latest exercise summary is
-saved privately, excluded from backup, and removable with **Forget**. Inference
+Chat and bounded per-workout history are saved privately and excluded from backup.
+Clear removes chat; Forget removes workout history and chat. See
+[Voice, workout context and AR proposals](coach-context-and-ar.md) for the current
+context and room-JSON workflow. Inference
 is cancelled and the model released when the coach screen stops. Initial loading
 and file verification can take longer than subsequent questions. A successful
 checksum is reused within the same coach instance while file size and modification
@@ -98,8 +102,9 @@ comprehensive assessment of exercise advice.
 
 This is a small generative model: answers can still be inaccurate. Detector cues
 and 2D angle estimates are not verified form faults or injury diagnoses. The
-coach has no live camera view and does not control rep counting, AR placement,
-rig animation or training data. Prompts request short grounded explanations;
+coach has no live camera view and does not change rep counting, rig animation
+or training data. A validated room proposal can select a measured floor and an
+existing AR demo after the user chooses Preview. Prompts request short grounded explanations;
 these instructions are not a guarantee of correctness. General movement notes
 draw on <https://www.nhs.uk/live-well/exercise/strength-exercises/>; app-specific
 explanations describe the actual counter rules. Model and runtime licenses are
