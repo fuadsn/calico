@@ -60,9 +60,8 @@ fun BumpBar(items: List<Pair<ImageVector, String>>, selected: Int, modifier: Mod
                 val pill = Path().apply { addRoundRect(RoundRect(Rect(0f, b, size.width, size.height - b), CornerRadius(r))) }
                 val circle = Path().apply { addOval(Rect(Offset(cx, cy), (buttonSize / 2).toPx() * 1.2f + 10.dp.toPx())) }
                 val p = Path.combine(PathOperation.Union, pill, circle)
-                drawPath(p, PillBg)
-                drawPath(p, onTile(Cloud), style = Stroke(3.dp.toPx()))
-                drawCircle(Accent, (buttonSize / 2).toPx() * 1.2f, Offset(cx, cy))   // the coral disc slides with the swell
+                drawPath(p, Snow)
+                drawCircle(Charcoal, (buttonSize / 2).toPx() * 1.2f, Offset(cx, cy))   // the dark disc slides with the swell
             }
             .padding(horizontal = BUMP, vertical = BUMP + 4.dp),
         horizontalArrangement = Arrangement.spacedBy(gap),
@@ -73,7 +72,7 @@ fun BumpBar(items: List<Pair<ImageVector, String>>, selected: Int, modifier: Mod
             Box(
                 Modifier.size(buttonSize).scale(scale).clip(CircleShape).clickable { onSelect(i) },
                 contentAlignment = Alignment.Center,
-            ) { Icon(icon, name, tint = animateColorAsState(if (on) OnAccent else onTile(Cloud), label = "tint").value) }
+            ) { Icon(icon, name, tint = animateColorAsState(if (on) Accent else Charcoal, label = "tint").value) }
         }
     }
 }
