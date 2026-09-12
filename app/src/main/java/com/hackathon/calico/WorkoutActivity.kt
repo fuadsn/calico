@@ -1,5 +1,7 @@
 package com.hackathon.calico
 
+import android.content.Intent
+
 import android.Manifest
 import android.app.AlertDialog
 import android.graphics.Bitmap
@@ -77,6 +79,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -119,6 +122,16 @@ class WorkoutActivity : ComponentActivity() {
     private var counterR: RepCounter? = null          // SUM mode: the right side; totals reported via total()
     private fun total() = counter.count + (counterR?.count ?: 0)
     private fun totalCues() = counter.cues + (counterR?.cues ?: 0)
+    private var coachMin: Float? = null
+    private var coachMax: Float? = null
+    private val coachCues = linkedMapOf<String,Int>()
+
+    private fun saveCoachSnapshot() {
+        if(bench || !::counter.isInitialized || coachMin==null) return
+        com.hackathon.calico.coach.CoachStore(this).save(com.hackathon.calico.coach.CoachSnapshot(
+            counter.exercise.name,total(),steps[stepIndex].target.takeIf { it!=Int.MAX_VALUE },
+            counter.exercise.holdSec>0,coachCues.toMap(),coachMin,coachMax,System.currentTimeMillis()))
+    }
     private val analyzerExecutor = Executors.newSingleThreadExecutor()
     private val ui = Handler(Looper.getMainLooper())
 
@@ -169,6 +182,7 @@ class WorkoutActivity : ComponentActivity() {
     // ---------- routine flow ----------
 
     private fun setStep(i: Int) {
+        coachMin=null; coachMax=null; coachCues.clear()
         stepIndex = i
         count = 0
         val s = steps[i]
@@ -181,10 +195,16 @@ class WorkoutActivity : ComponentActivity() {
 
     private fun onRep(n: Int) {
         count = n
+        saveCoachSnapshot()
         if (n >= steps[stepIndex].target) advance() else say(n.toString())
     }
 
-    private fun onCue(text: String) { cue = text to SystemClock.uptimeMillis(); say(text) }
+    private fun onCue(text: String) {
+        cue = text to SystemClock.uptimeMillis()
+        coachCues[text]=(coachCues[text] ?: 0)+1
+        saveCoachSnapshot()
+        say(text)
+    }
 
     private fun advance() {
         if (phase != Phase.RUNNING) return
@@ -215,7 +235,7 @@ class WorkoutActivity : ComponentActivity() {
 
     @Composable
     private fun Screen() {
-        Box(Modifier.fillMaxSize().background(Navy)) {
+        Box(Modifier.fillMaxSize().background(Bg)) {
             if (phase == Phase.DONE && !bench) { Complete(); return@Box }
             if (bench) benchFrame?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
             else AndroidView({ previewView }, Modifier.fillMaxSize())
@@ -239,25 +259,25 @@ class WorkoutActivity : ComponentActivity() {
             // top: title + pause, side stat pill
             Row(Modifier.statusBarsPadding().padding(20.dp), verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
-                    Text("Your Workout", style = MaterialTheme.typography.headlineLarge, color = Snow)
+                    Text("Your Workout", style = MaterialTheme.typography.headlineLarge, color = Color.White)
                     Text(
                         (if (step.warmup) "Warm-up · " else "") + step.exercise.label,
-                        style = MaterialTheme.typography.titleMedium, color = Snow.copy(0.85f),
+                        style = MaterialTheme.typography.titleMedium, color = Color.White.copy(0.85f),
                     )
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Box(
                         Modifier.size(52.dp).background(Snow, CircleShape).clickable { phase = if (phase == Phase.PAUSED) Phase.RUNNING else Phase.PAUSED },
                         contentAlignment = Alignment.Center,
-                    ) { Icon(if (phase == Phase.PAUSED) Icons.Outlined.PlayArrow else Icons.Outlined.Pause, "pause", tint = Navy) }
+                    ) { Icon(if (phase == Phase.PAUSED) Icons.Outlined.PlayArrow else Icons.Outlined.Pause, "pause", tint = Charcoal) }
                     Spacer(Modifier.height(14.dp))
                     Column(Modifier.background(Snow, Pill).padding(horizontal = 14.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(if (open) "$count" else "$count / $target", style = MaterialTheme.typography.titleMedium, color = Ink)
-                        Text(if (hold) "seconds" else "reps", style = MaterialTheme.typography.labelSmall, color = Muted)
+                        Text(if (open) "$count" else "$count / $target", style = MaterialTheme.typography.titleMedium, color = Charcoal)
+                        Text(if (hold) "seconds" else "reps", style = MaterialTheme.typography.labelSmall, color = Slate)
                         if (steps.size > 1) {
                             Spacer(Modifier.height(8.dp))
                             steps.indices.forEach { i ->
-                                Box(Modifier.padding(vertical = 2.dp).size(width = 34.dp, height = 8.dp).background(if (i <= stepIndex) Purple else PurpleSoft, Pill))
+                                Box(Modifier.padding(vertical = 2.dp).size(width = 34.dp, height = 8.dp).background(if (i <= stepIndex) Accent else Cloud, Pill))
                             }
                         }
                     }
@@ -269,9 +289,9 @@ class WorkoutActivity : ComponentActivity() {
             var visible by remember { mutableStateOf(false) }
             LaunchedEffect(c?.second) { if (c != null) { visible = true; delay(1600); visible = false } }
             AnimatedVisibility(visible, Modifier.align(Alignment.CenterHorizontally).padding(bottom = 16.dp), enter = fadeIn(), exit = fadeOut()) {
-                Text(c?.first ?: "", Modifier.background(Lime, Pill).padding(horizontal = 22.dp, vertical = 12.dp), style = MaterialTheme.typography.titleLarge, color = Navy)
+                Text(c?.first ?: "", Modifier.background(Snow, Pill).padding(horizontal = 22.dp, vertical = 12.dp), style = MaterialTheme.typography.titleLarge, color = Charcoal)
             }
-            benchDone?.let { Text(it, Modifier.align(Alignment.CenterHorizontally).padding(8.dp), style = MaterialTheme.typography.titleMedium, color = Lime) }
+            benchDone?.let { Text(it, Modifier.align(Alignment.CenterHorizontally).padding(8.dp), style = MaterialTheme.typography.titleMedium, color = Accent) }
             // bottom sheet
             Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)).padding(24.dp).navigationBarsPadding()) {
                 Box(Modifier.align(Alignment.CenterHorizontally).size(width = 40.dp, height = 4.dp).background(Line, Pill))
@@ -283,8 +303,8 @@ class WorkoutActivity : ComponentActivity() {
                     }
                     Text(
                         if (hold) "${count}s" else "$count",
-                        style = MaterialTheme.typography.displayLarge, color = Navy,
-                        modifier = Modifier.background(Navy.copy(0.06f), TileShape).padding(horizontal = 24.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.displayLarge, color = Snow,
+                        modifier = Modifier.background(Slate, TileShape).padding(horizontal = 24.dp, vertical = 4.dp),
                     )
                     Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
                         Text("Step", style = MaterialTheme.typography.labelMedium, color = Muted)
@@ -297,13 +317,13 @@ class WorkoutActivity : ComponentActivity() {
                         Text(
                             if (recordingNow) "■ STOP REC" else "● REC",
                             Modifier.clickable(onClick = ::toggleRecord).padding(8.dp),
-                            style = MaterialTheme.typography.labelMedium, color = if (recordingNow) Purple else Muted,
+                            style = MaterialTheme.typography.labelMedium, color = if (recordingNow) Accent else Muted,
                         )
                         Spacer(Modifier.weight(1f))
                         if (!open) Text(
                             if (stepIndex == steps.lastIndex) "FINISH" else "SKIP",
-                            Modifier.background(Navy, Pill).clickable(onClick = ::advance).padding(horizontal = 26.dp, vertical = 14.dp),
-                            style = MaterialTheme.typography.labelLarge, color = Lime,
+                            Modifier.background(Snow, Pill).clickable(onClick = ::advance).padding(horizontal = 26.dp, vertical = 14.dp),
+                            style = MaterialTheme.typography.labelLarge, color = Charcoal,
                         )
                     }
                 }
@@ -314,16 +334,16 @@ class WorkoutActivity : ComponentActivity() {
     @Composable
     private fun Rest() {
         val next = steps[stepIndex + 1]
-        Box(Modifier.fillMaxSize().background(Navy.copy(alpha = 0.86f)), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize().background(Bg.copy(alpha = 0.9f)), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("REST", style = MaterialTheme.typography.labelMedium, color = Snow.copy(0.7f))
-                Text("$restLeft", style = MaterialTheme.typography.displayLarge, color = Lime)
+                Text("$restLeft", style = MaterialTheme.typography.displayLarge, color = Accent)
                 Spacer(Modifier.height(24.dp))
                 Text("NEXT UP", style = MaterialTheme.typography.labelMedium, color = Snow.copy(0.7f))
-                Text(next.exercise.label, style = MaterialTheme.typography.headlineLarge, color = Snow)
+                Text(next.exercise.label, style = MaterialTheme.typography.headlineLarge, color = Color.White)
                 Text(
                     if (next.exercise.holdSec > 0) "hold ${next.target}s" else "×${next.target}",
-                    style = MaterialTheme.typography.headlineSmall, color = Lime,
+                    style = MaterialTheme.typography.headlineSmall, color = Accent,
                 )
             }
         }
@@ -350,7 +370,7 @@ class WorkoutActivity : ComponentActivity() {
                     val s = 34.dp.toPx(); val d = size.width - s
                     val tl = Offset(s / 2, s / 2); val sz = Size(d, d)
                     drawArc(Line, 180f, 180f, false, tl, sz, style = Stroke(s, cap = StrokeCap.Round))
-                    drawArc(Purple, 180f, 180f * gauge, false, tl, sz, style = Stroke(s, cap = StrokeCap.Round))
+                    drawArc(Accent, 180f, 180f * gauge, false, tl, sz, style = Stroke(s, cap = StrokeCap.Round))
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Row(verticalAlignment = Alignment.Bottom) {
@@ -361,15 +381,15 @@ class WorkoutActivity : ComponentActivity() {
                 }
             }
             Spacer(Modifier.height(20.dp))
-            Row(Modifier.fillMaxWidth().background(Lime, Pill).padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().background(Accent, Pill).padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("🔥", fontSize = 22.sp)
                 Spacer(Modifier.width(12.dp))
                 Text(
                     "${if (streak == 0) streakBefore else streak} day streak" + if (streakAfter > streakBefore) "  ·  +1" else "",
-                    style = MaterialTheme.typography.titleMedium, color = Ink,
+                    style = MaterialTheme.typography.titleMedium, color = OnAccent,
                 )
                 Spacer(Modifier.weight(1f))
-                Text("${secs / 60}m ${secs % 60}s", style = MaterialTheme.typography.labelMedium, color = Ink.copy(0.7f))
+                Text("${secs / 60}m ${secs % 60}s", style = MaterialTheme.typography.labelMedium, color = OnAccent.copy(0.7f))
             }
             Spacer(Modifier.height(24.dp))
             Row(Modifier.fillMaxWidth()) { Text("Today Stats", style = MaterialTheme.typography.headlineSmall, color = Ink) }
@@ -380,7 +400,7 @@ class WorkoutActivity : ComponentActivity() {
                         val ok = got >= s.target
                         Column(Modifier.weight(1f).background(Card, TileShape).padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(8.dp).background(if (ok) Purple else Pink, CircleShape))
+                                Box(Modifier.size(8.dp).background(if (ok) Accent else Muted, CircleShape))
                                 Spacer(Modifier.width(8.dp))
                                 Text(s.exercise.label, style = MaterialTheme.typography.labelMedium, color = Muted)
                             }
@@ -398,9 +418,16 @@ class WorkoutActivity : ComponentActivity() {
             Spacer(Modifier.height(12.dp))
             Text(
                 "BACK HOME",
-                Modifier.fillMaxWidth().background(Navy, Pill).clickable(onClick = ::finish).padding(vertical = 20.dp),
-                style = MaterialTheme.typography.labelLarge, color = Lime, textAlign = TextAlign.Center,
+                Modifier.fillMaxWidth().background(Snow, Pill).clickable(onClick = ::finish).padding(vertical = 20.dp),
+                style = MaterialTheme.typography.labelLarge, color = Charcoal, textAlign = TextAlign.Center,
             )
+            Spacer(Modifier.height(12.dp))
+            Text("ASK OFFLINE COACH",style=MaterialTheme.typography.labelLarge,color=OnAccent,
+                textAlign=TextAlign.Center,modifier=Modifier.fillMaxWidth().background(Accent,Pill).clickable {
+                    saveCoachSnapshot()
+                    startActivity(Intent(this@WorkoutActivity,CoachActivity::class.java)
+                        .putExtra("question","Explain my latest recorded form cues and what to check next."))
+                }.padding(vertical=20.dp))
             Spacer(Modifier.height(8.dp))
         }
     }
@@ -565,12 +592,17 @@ class WorkoutActivity : ComponentActivity() {
         val rightCounter = counterR
         ui.post {
             if (counter !== leftCounter || phase != Phase.RUNNING) return@post
+            listOfNotNull(sample.left,sample.right).forEach { value ->
+                coachMin=minOf(coachMin ?: value,value)
+                coachMax=maxOf(coachMax ?: value,value)
+            }
             sample.left?.let { leftCounter.feed(it, t) }
             sample.right?.let { rightCounter?.feed(it, t) }
         }
     }
 
     override fun onDestroy() {
+        saveCoachSnapshot()
         super.onDestroy()
         ui.removeCallbacksAndMessages(null)
         recording?.stop()

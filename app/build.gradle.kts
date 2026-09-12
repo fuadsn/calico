@@ -7,12 +7,22 @@ plugins {
 android {
     namespace = "com.hackathon.calico"
     compileSdk = 36
+    ndkVersion = "29.0.13846066"
     defaultConfig {
         applicationId = "com.hackathon.calico"
         minSdk = 28
         targetSdk = 36
         versionCode = 1
         versionName = "0.1"
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+        ndk { abiFilters += "arm64-v8a" }
+        externalNativeBuild {
+            cmake {
+                arguments += listOf("-DCMAKE_BUILD_TYPE=Release",
+                    "-DFETCHCONTENT_BASE_DIR=${rootProject.layout.buildDirectory.get().asFile.invariantSeparatorsPath}/native-deps")
+                targets += "calico_coach"
+            }
+        }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
@@ -20,6 +30,7 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
     buildFeatures { compose = true }
+    externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt"); version = "3.22.1" } }
     // .task model must not be compressed or MediaPipe can't mmap it
     androidResources { noCompress += "task" }
 }
@@ -32,6 +43,7 @@ dependencies {
     implementation("androidx.camera:camera-view:$camerax")
     implementation("androidx.camera:camera-video:$camerax")
     implementation("androidx.activity:activity-compose:1.11.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.9.4")
     implementation(platform("androidx.compose:compose-bom:2025.10.01"))
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
@@ -41,4 +53,6 @@ dependencies {
     implementation(project(":roomscan"))
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 }

@@ -43,6 +43,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Map
+import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.NorthEast
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -50,6 +51,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -77,7 +79,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge(statusBarStyle = SystemBarStyle.light(0, 0), navigationBarStyle = SystemBarStyle.light(0, 0))
+        enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(0), navigationBarStyle = SystemBarStyle.dark(0))
         setContent { CalicoTheme { App(resumed.intValue) } }
     }
 
@@ -93,26 +95,37 @@ private fun App(resumed: Int) {
     val ctx = LocalContext.current
     val progress = remember { Progress(ctx) }
     var tab by remember { mutableIntStateOf(0) }
+    var voice by remember { mutableStateOf(false) }
     Box(Modifier.fillMaxSize().background(Bg)) {
         if (tab == 0) Home(progress, resumed) else Journey(progress, resumed)
-        BottomBar(tab, Modifier.align(Alignment.BottomCenter)) { i -> if (i == 2) openScan(ctx) else tab = i }
+        BottomBar(tab, Modifier.align(Alignment.BottomCenter)) { i ->
+            when (i) {
+                2 -> openScan(ctx)
+                3 -> voice = true
+                else -> tab = i
+            }
+        }
+        if (voice) VoiceSheet { voice = false }
     }
 }
 
 /** Floating white pill with circular icon buttons, the selected one filled purple. */
 @Composable
 private fun BottomBar(selected: Int, modifier: Modifier, onSelect: (Int) -> Unit) {
-    val items = listOf<Pair<ImageVector, String>>(Icons.Outlined.Home to "Home", Icons.Outlined.Map to "Journey", Icons.Outlined.CameraAlt to "Scan")
+    val items = listOf<Pair<ImageVector, String>>(
+        Icons.Outlined.Home to "Home", Icons.Outlined.Map to "Journey",
+        Icons.Outlined.CameraAlt to "Scan", Icons.Outlined.Mic to "Voice",
+    )
     Row(
-        modifier.navigationBarsPadding().padding(bottom = 12.dp).shadow(16.dp, Pill, ambientColor = Navy.copy(0.15f)).background(Card, Pill).padding(8.dp),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        modifier.navigationBarsPadding().padding(bottom = 12.dp).shadow(16.dp, Pill, ambientColor = Color.Black.copy(0.4f)).background(Card, Pill).padding(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
         items.forEachIndexed { i, (icon, name) ->
             val on = i == selected
             Box(
-                Modifier.size(56.dp).background(if (on) Purple else Bg, CircleShape).clickable { onSelect(i) },
+                Modifier.size(52.dp).background(if (on) Accent else Cloud, CircleShape).clickable { onSelect(i) },
                 contentAlignment = Alignment.Center,
-            ) { Icon(icon, name, tint = if (on) Snow else Ink) }
+            ) { Icon(icon, name, tint = if (on) OnAccent else onTile(Cloud)) }
         }
     }
 }
@@ -139,7 +152,7 @@ private fun Home(progress: Progress, resumed: Int) {
         // header
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(52.dp).background(PurpleSoft, CircleShape).combinedClickable(onClick = {}, onLongClick = {
+                Modifier.size(52.dp).background(Charcoal, CircleShape).combinedClickable(onClick = {}, onLongClick = {
                     progress.reset(); resetsKey++   // demo rehearsals start from a zero streak
                     Toast.makeText(ctx, "Progress reset", Toast.LENGTH_SHORT).show()
                 }),
@@ -150,36 +163,45 @@ private fun Home(progress: Progress, resumed: Int) {
                 Text("HI THERE 👋", style = MaterialTheme.typography.titleLarge, color = Ink)
                 Text("⚡ Level ${completed + 1} · ${level.title}", style = MaterialTheme.typography.labelMedium, color = Muted)
             }
-            Box(Modifier.background(Card, Pill).padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Box(Modifier.background(Charcoal, Pill).padding(horizontal = 14.dp, vertical = 10.dp)) {
                 Text("🔥 $streak", style = MaterialTheme.typography.titleMedium, color = Ink)
             }
         }
 
         Spacer(Modifier.height(24.dp))
         WeekStrip(dates)
+        Spacer(Modifier.height(16.dp))
+        Column(Modifier.fillMaxWidth().background(Charcoal,CardShape).clickable {
+            ctx.startActivity(Intent(ctx,CoachActivity::class.java))
+        }.padding(20.dp)) {
+            Text("Offline coach",style=MaterialTheme.typography.titleLarge,color=Ink)
+            Text("Ask a question or understand your latest form cues.",style=MaterialTheme.typography.bodyMedium,color=Ink,
+                modifier=Modifier.padding(top=4.dp))
+            Text("Open coach →",style=MaterialTheme.typography.labelLarge,color=Accent,modifier=Modifier.padding(top=12.dp))
+        }
 
         // Today's challenge
         Spacer(Modifier.height(20.dp))
-        Box(Modifier.fillMaxWidth().background(Lime, CardShape).padding(20.dp)) {
+        Box(Modifier.fillMaxWidth().background(Accent, CardShape).padding(20.dp)) {
             Column {
-                Text("Today's Challenge", style = MaterialTheme.typography.headlineSmall, color = Ink)
+                Text("Today's Challenge", style = MaterialTheme.typography.headlineSmall, color = OnAccent)
                 Spacer(Modifier.height(2.dp))
                 Text(
                     if (doneToday) "Done for today. Go again?" else "${level.title} · ${plan.size} exercises · ${level.blurb}",
-                    style = MaterialTheme.typography.bodyMedium, color = Ink.copy(0.7f),
+                    style = MaterialTheme.typography.bodyMedium, color = OnAccent.copy(0.7f),
                 )
                 Spacer(Modifier.height(16.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Row(
-                        Modifier.background(Navy, Pill)
+                        Modifier.background(Snow, Pill)
                             .clickable { ctx.startActivity(Intent(ctx, WorkoutActivity::class.java).putExtra("routine", plan.encode())) }
                             .padding(start = 22.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(if (doneToday) "GO AGAIN" else "START", style = MaterialTheme.typography.labelLarge, color = Lime)
+                        Text(if (doneToday) "GO AGAIN" else "START", style = MaterialTheme.typography.labelLarge, color = Charcoal)
                         Spacer(Modifier.width(12.dp))
-                        Box(Modifier.size(36.dp).background(Snow, CircleShape), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Outlined.NorthEast, null, tint = Navy, modifier = Modifier.size(18.dp))
+                        Box(Modifier.size(36.dp).background(Accent, CircleShape), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Outlined.NorthEast, null, tint = OnAccent, modifier = Modifier.size(18.dp))
                         }
                     }
                     Spacer(Modifier.weight(1f))
@@ -194,8 +216,8 @@ private fun Home(progress: Progress, resumed: Int) {
             listOf("All", "Warm-up", "Workout").forEachIndexed { i, t ->
                 val on = i == filter
                 Text(
-                    t, style = MaterialTheme.typography.labelMedium, color = if (on) Snow else Muted,
-                    modifier = Modifier.background(if (on) Navy else Color.Transparent, Pill).clickable { filter = i }.padding(horizontal = 18.dp, vertical = 10.dp),
+                    t, style = MaterialTheme.typography.labelMedium, color = if (on) OnAccent else Muted,
+                    modifier = Modifier.background(if (on) Accent else Color.Transparent, Pill).clickable { filter = i }.padding(horizontal = 18.dp, vertical = 10.dp),
                 )
             }
         }
@@ -203,20 +225,20 @@ private fun Home(progress: Progress, resumed: Int) {
         // stat tiles
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(Modifier.weight(1f).background(PurpleSoft, TileShape).padding(18.dp)) {
+            Column(Modifier.weight(1f).background(Charcoal, TileShape).padding(18.dp)) {
                 Row { Text("Streak", style = MaterialTheme.typography.titleMedium, color = Ink, modifier = Modifier.weight(1f)); Text("🔥", fontSize = 22.sp) }
                 Spacer(Modifier.height(18.dp))
                 Text("$streak", style = MaterialTheme.typography.displayMedium, color = Ink)
                 Text(if (streak == 1) "day" else "days", style = MaterialTheme.typography.labelMedium, color = Muted)
             }
-            Column(Modifier.weight(1f).background(Sky, TileShape).padding(18.dp)) {
+            Column(Modifier.weight(1f).background(Slate, TileShape).padding(18.dp)) {
                 Text("My Goals", style = MaterialTheme.typography.titleMedium, color = Ink)
                 Spacer(Modifier.height(6.dp))
                 Text("Keep it up, you can\nreach Absolute Beast.", style = MaterialTheme.typography.labelSmall, color = Ink.copy(0.7f))
                 Spacer(Modifier.height(14.dp))
-                Box(Modifier.fillMaxWidth().background(Card, Pill).padding(4.dp)) {
-                    Box(Modifier.fillMaxWidth(maxOf(0.18f, completed.toFloat() / LEVELS.size)).height(26.dp).background(Purple, Pill), contentAlignment = Alignment.Center) {
-                        Text("$completed/${LEVELS.size}", style = MaterialTheme.typography.labelSmall, color = Snow)
+                Box(Modifier.fillMaxWidth().background(Snow.copy(0.15f), Pill).padding(4.dp)) {
+                    Box(Modifier.fillMaxWidth(maxOf(0.18f, completed.toFloat() / LEVELS.size)).height(26.dp).background(Snow, Pill), contentAlignment = Alignment.Center) {
+                        Text("$completed/${LEVELS.size}", style = MaterialTheme.typography.labelSmall, color = Charcoal)
                     }
                 }
             }
@@ -228,23 +250,24 @@ private fun Home(progress: Progress, resumed: Int) {
         Spacer(Modifier.height(12.dp))
         val shown = plan.filter { filter == 0 || (filter == 1) == it.warmup }
         shown.forEach { step ->
+            val tile = tileColor(plan.indexOf(step))
             Row(
-                Modifier.fillMaxWidth().padding(bottom = 10.dp).background(tileColor(plan.indexOf(step)), TileShape).padding(18.dp),
+                Modifier.fillMaxWidth().padding(bottom = 10.dp).background(tile, TileShape).padding(18.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(step.exercise.label, style = MaterialTheme.typography.titleLarge, color = Ink)
-                    Text("View workout", color = Purple, style = MaterialTheme.typography.labelLarge,
+                    Text(step.exercise.label, style = MaterialTheme.typography.titleLarge, color = onTile(tile))
+                    Text("View workout", color = onTile(tile).copy(0.8f), style = MaterialTheme.typography.labelMedium,
                         modifier = Modifier.clickable {
                             ctx.startActivity(Intent(ctx, com.calico.roomscan.PreviewActivity::class.java)
                                 .putExtra("exercise", step.exercise.name))
-                        }.padding(vertical = 10.dp))
-                    Text(if (step.warmup) "Warm-up" else "Workout", style = MaterialTheme.typography.labelSmall, color = Ink.copy(0.6f))
+                        }.padding(vertical = 6.dp))
+                    Text(if (step.warmup) "Warm-up" else "Workout", style = MaterialTheme.typography.labelSmall, color = onTile(tile).copy(0.6f))
                 }
-                Box(Modifier.size(58.dp).background(Card, CircleShape), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(58.dp).background(Snow, CircleShape), contentAlignment = Alignment.Center) {
                     Text(
                         if (step.exercise.holdSec > 0) "${step.target}s" else "×${step.target}",
-                        style = MaterialTheme.typography.titleMedium, color = Ink,
+                        style = MaterialTheme.typography.titleMedium, color = Charcoal,
                     )
                 }
             }
@@ -257,10 +280,10 @@ private fun Ring(fraction: Float, text: String) {
     Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val s = 7.dp.toPx(); val inset = s / 2; val arc = Size(size.width - s, size.height - s)
-            drawArc(Snow.copy(0.6f), 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(s))
-            drawArc(Navy, -90f, 360f * fraction, false, Offset(inset, inset), arc, style = Stroke(s, cap = StrokeCap.Round))
+            drawArc(OnAccent.copy(0.15f), 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(s))
+            drawArc(OnAccent, -90f, 360f * fraction, false, Offset(inset, inset), arc, style = Stroke(s, cap = StrokeCap.Round))
         }
-        Text(text, style = MaterialTheme.typography.labelMedium, color = Ink)
+        Text(text, style = MaterialTheme.typography.labelMedium, color = OnAccent)
     }
 }
 
@@ -281,12 +304,12 @@ private fun WeekStrip(dates: Set<LocalDate>) {
                 )
                 Spacer(Modifier.height(8.dp))
                 Box(
-                    Modifier.size(40.dp).background(if (isToday) Lime else if (done) Purple else Color.Transparent, CircleShape),
+                    Modifier.size(40.dp).background(if (isToday) Snow else if (done) Accent else Color.Transparent, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         "${day.dayOfMonth}", style = MaterialTheme.typography.titleMedium,
-                        color = if (done && !isToday) Snow else if (isToday || day < today) Ink else Muted,
+                        color = if (isToday) Charcoal else if (done) OnAccent else if (day < today) Ink else Muted,
                     )
                 }
             }
@@ -342,7 +365,7 @@ private fun JourneyRow(i: Int, level: Level, state: NodeState, last: Boolean, on
             val cy = size.height / 2
             val stroke = 6.dp.toPx()
             val dash = PathEffect.dashPathEffect(floatArrayOf(14f, 14f))
-            val col = if (state == NodeState.DONE) Purple else Line
+            val col = if (state == NodeState.DONE) Accent else Line
             if (!last) drawLine(col, Offset(cx, cy), Offset(nx, size.height), stroke, pathEffect = dash)
             if (i > 0) drawLine(col, Offset(cx, 0f), Offset(cx, cy), stroke, pathEffect = dash)
         }
@@ -353,9 +376,9 @@ private fun JourneyRow(i: Int, level: Level, state: NodeState, last: Boolean, on
             Box(
                 Modifier.size(NODE)
                     .scale(if (state == NodeState.CURRENT) pulse else 1f)
-                    .shadow(if (state == NodeState.LOCKED) 0.dp else 10.dp, CircleShape, ambientColor = Purple.copy(0.3f))
+                    .shadow(if (state == NodeState.LOCKED) 0.dp else 10.dp, CircleShape, ambientColor = Accent.copy(0.5f))
                     .background(
-                        when (state) { NodeState.DONE -> Purple; NodeState.CURRENT -> Lime; NodeState.LOCKED -> Card },
+                        when (state) { NodeState.DONE -> Accent; NodeState.CURRENT -> Snow; NodeState.LOCKED -> Card },
                         CircleShape,
                     )
                     .border(if (state == NodeState.LOCKED) 2.dp else 0.dp, Line, CircleShape),
@@ -364,7 +387,7 @@ private fun JourneyRow(i: Int, level: Level, state: NodeState, last: Boolean, on
                 Text(
                     when (state) { NodeState.DONE -> "✓"; NodeState.CURRENT -> "${i + 1}"; NodeState.LOCKED -> "🔒" },
                     style = MaterialTheme.typography.headlineSmall,
-                    color = if (state == NodeState.DONE) Snow else Ink,
+                    color = when (state) { NodeState.DONE -> OnAccent; NodeState.CURRENT -> Charcoal; NodeState.LOCKED -> Muted },
                 )
             }
             Spacer(Modifier.height(6.dp))
