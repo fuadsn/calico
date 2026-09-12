@@ -29,6 +29,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import kotlin.math.abs
@@ -70,6 +71,7 @@ fun BumpBar(items: List<Pair<ImageVector, String>>, selected: Int, modifier: Mod
                 for (i in 1..24) { val a = Math.toRadians(90.0 + 180.0 * i / 24); val nx = cos(a).toFloat(); val ny = sin(a).toFloat(); add(r + r * nx, cy + r * ny, nx, ny) }
                 p.close()
                 drawPath(p, PillBg)
+                drawPath(p, onTile(Cloud), style = Stroke(3.dp.toPx()))
             }
             .padding(horizontal = BUMP, vertical = BUMP + 8.dp),
         horizontalArrangement = Arrangement.spacedBy(gap),
