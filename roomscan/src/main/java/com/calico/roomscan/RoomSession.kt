@@ -53,6 +53,13 @@ object RoomSession : Application.ActivityLifecycleCallbacks {
     /** Called on the active GL thread once a measured floor is stable. */
     fun select(plane: Plane) {
         if (selectedPlane == plane && selectedAnchor != null) return
+        // ARCore merges floor patches into new plane objects as the map grows. Re-creating the
+        // anchor at each new centre is what made the figure jump; keep the spot if it still fits.
+        selectedAnchor?.takeIf { it.trackingState == com.google.ar.core.TrackingState.TRACKING &&
+            plane.isPoseInPolygon(it.pose) }?.let {
+            selectedPlane = plane
+            return
+        }
         val replacement = plane.createAnchor(plane.centerPose)
         selectedAnchor?.detach()
         selectedAnchor = replacement

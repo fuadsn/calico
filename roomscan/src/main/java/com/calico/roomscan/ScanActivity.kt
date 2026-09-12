@@ -296,20 +296,29 @@ class ScanActivity : Activity(), GLSurfaceView.Renderer {
             return
         }
 
-        best.plane.centerPose.toMatrix(bestPlaneMatrix, 0)
-        val seconds = (SystemClock.uptimeMillis() - startedAtMs) / 1000f
-        interaction.advance(seconds)
-        interaction.transform(bestPlaneMatrix)
-        val rigged = figure?.takeIf { it.isUsable }
-        if (rigged != null) rigged.draw(viewProjectionMatrix, bestPlaneMatrix, seconds)
-        else avatarRenderer.draw(viewProjectionMatrix, bestPlaneMatrix, seconds)
-        interaction.bounds(viewProjectionMatrix, bestPlaneMatrix, rigged?.bounds ?: avatarRenderer.bounds,
-            viewportWidth, viewportHeight)
-
         // Require the spot to hold still for a moment so a flickering early plane
         // does not unlock the button and then vanish.
         val stable = stability.observe(best.plane, best.plane.centerPose.ty(), frame.timestamp)
         if (stable) RoomSession.select(best.plane)
+
+        // Stand on the fixed anchor, never on the plane's centre: the centre moves every time
+        // the floor map grows, which dragged the figure across the room.
+        val spot = RoomSession.selectedAnchor?.takeIf { stable && it.trackingState == TrackingState.TRACKING }
+        if (spot != null) {
+            val position = spot.pose.translation
+            Matrix.setIdentityM(bestPlaneMatrix, 0)
+            Matrix.translateM(bestPlaneMatrix, 0, position[0], best.plane.centerPose.ty(), position[2])
+            val seconds = (SystemClock.uptimeMillis() - startedAtMs) / 1000f
+            interaction.advance(seconds)
+            interaction.transform(bestPlaneMatrix)
+            val rigged = figure?.takeIf { it.isUsable }
+            if (rigged != null) rigged.draw(viewProjectionMatrix, bestPlaneMatrix, seconds)
+            else avatarRenderer.draw(viewProjectionMatrix, bestPlaneMatrix, seconds)
+            interaction.bounds(viewProjectionMatrix, bestPlaneMatrix, rigged?.bounds ?: avatarRenderer.bounds,
+                viewportWidth, viewportHeight)
+        } else {
+            interaction.suspend()
+        }
         if (stable != foundSpot) {
             foundSpot = stable
             runOnUiThread { nextButton.visibility = if (stable) View.VISIBLE else View.GONE }

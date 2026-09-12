@@ -18,13 +18,16 @@
     <string name="scan_ar_unavailable">ARCore is not available on this device</string>
     <string name="scan_workout_missing">Workout screen not found</string>
 
+    <string name="preview_subtitle">See it in your room</string>
+    <string name="preview_sheet_label">AR preview</string>
+    <string name="preview_demo_label">3D demo</string>
     <string name="preview_looking">Point at the floor to stand the demo up</string>
-    <string name="preview_pending">3D demo shown in the corner. Aim at the floor or tap a mapped surface to place it.</string>
+    <string name="preview_pending">Aim at the floor or tap a mapped surface to place the demo.</string>
     <string name="preview_offscreen">The demo is placed outside this view. Turn toward it or tap a surface to move it.</string>
     <string name="preview_tap">Tap the floor to move the demo</string>
     <string name="figure_interaction">Drag the model up to lift, sideways to turn. Release to drop.</string>
-    <string name="preview_find_support">Scan the floor and a raised support with clear space beside it. Showing a separate demo while searching.</string>
-    <string name="preview_find_overhead">Scan the floor and an overhead hand support. The scanner detects geometry, so check that the support is suitable. Showing a separate demo.</string>
+    <string name="preview_find_support">Scan the floor and a raised support with clear space beside it.</string>
+    <string name="preview_find_overhead">Scan the floor and an overhead hand support. The scanner detects geometry, so check that the support is suitable.</string>
     <string name="preview_support_ready">Feet on the floor; palms on the raised surface. Drag up to lift; release to reconnect. Tap nearby to choose another spot.</string>
     <string name="preview_overhead_ready">Hands attached to the overhead surface; feet hang freely. Check the real support before exercising. Drag up to lift.</string>
     <string name="preview_no_ar">Showing the demo without AR</string>
