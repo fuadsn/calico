@@ -14,14 +14,14 @@ import androidx.compose.ui.unit.sp
 
 // Palette: calico, less beige. White coat with warm-grey surfaces, muted ginger patches used
 // sparingly, dark brown for text and pills, a light ginger tint as the fourth tile.
-val Bg = Color(0xFFFDFCFA)          // screen background: near white
-val Card = Color(0xFFF4F2EE)        // surfaces: warm light grey
-val Charcoal = Color(0xFFEDEAE5)    // tiles, chips: warm grey; also text on Snow pills
-val Slate = Color(0xFFE2DED7)       // secondary tiles: deeper warm grey
-val Accent = Color(0xFFCF7B45)      // muted ginger: progress and the one main button
-val AccentSoft = Color(0xFFEFD3BF)  // light ginger tint: fourth tile
-val OnAccent = Color(0xFFFDFCFA)    // text and icons placed on the accent
-val Cloud = Color(0xFFF1EFEB)       // unselected nav circles
+val Bg = Color(0xFFFFFCF8)          // screen background: near white
+val Card = Color(0xFFF6F0E9)        // surfaces: warm light grey
+val Charcoal = Color(0xFFF0E8DF)    // tiles, chips: warm grey; also text on Snow pills
+val Slate = Color(0xFFE6DDD2)       // secondary tiles: deeper warm grey
+val Accent = Color(0xFFE07A35)      // ginger: progress and the one main button
+val AccentSoft = Color(0xFFF6CFAE)  // light ginger tint: fourth tile
+val OnAccent = Color(0xFFFFFCF8)    // text and icons placed on the accent
+val Cloud = Color(0xFFF3ECE4)       // unselected nav circles
 val Snow = Color(0xFF3A2E27)        // dark brown for strong pills and bubbles
 val PillBg = Color(0xFFFFFFFF)      // floating bars
 val Ink = Color(0xFF2F2721)         // primary text
