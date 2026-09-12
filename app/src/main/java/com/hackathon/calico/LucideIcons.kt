@@ -34,6 +34,11 @@ object Lucide {
         "M16 14v.5",
         "M11.25 16.25h1.5L12 17l-.75-.75Z",
     )
+    val User = lucide(
+        "user",
+        "M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2",
+        "M12 3a4 4 0 1 0 0 8 4 4 0 1 0 0-8Z",
+    )
     val Hand = lucide(
         "hand",
         "M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2",

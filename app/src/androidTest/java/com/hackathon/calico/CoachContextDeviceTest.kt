@@ -37,7 +37,7 @@ class CoachContextDeviceTest {
                     .put("id","zone-1").put("stable",true).put("selectedFloor",true).put("widthM",2).put("depthM",2)
                     .put("areaM2",4).put("rating","AMPLE").put("relativeHeightM",0))).toString()
             NativeCoach().use { engine ->
-                engine.load(CoachModel(target).file.absolutePath)
+                CoachModel(target).open().use { engine.load(it.path,target.applicationInfo.nativeLibraryDir) }
                 fun answer(prompt: String): String {
                     engine.start(prompt)
                     val out=ByteArrayOutputStream()

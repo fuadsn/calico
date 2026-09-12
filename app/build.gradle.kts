@@ -22,8 +22,7 @@ android {
         ndk { abiFilters += "arm64-v8a" }
         externalNativeBuild {
             cmake {
-                arguments += listOf("-DCMAKE_BUILD_TYPE=Release",
-                    "-DFETCHCONTENT_BASE_DIR=${rootProject.layout.buildDirectory.get().asFile.invariantSeparatorsPath}/native-deps")
+                arguments += listOf("-DCMAKE_BUILD_TYPE=Release")
                 targets += "calico_coach"
             }
         }
@@ -37,6 +36,17 @@ android {
     externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt"); version = "3.22.1" } }
     // .task model must not be compressed or MediaPipe can't mmap it
     androidResources { noCompress += "task" }
+    // FastRPC opens the Hexagon skel by file path, so the libraries must be real
+    // files in nativeLibraryDir rather than mapped straight out of the APK.
+    packaging { jniLibs { useLegacyPackaging = true } }
+}
+
+val prebuiltNpuLibrary = file("src/main/jniLibs/arm64-v8a/libllama.so")
+tasks.matching { it.name.startsWith("configureCMake") || it.name.startsWith("buildCMake") }.configureEach {
+    doFirst {
+        if (!prebuiltNpuLibrary.isFile)
+            throw GradleException("Prebuilt llama.cpp NPU libraries are missing. Run: python tools/build-llama-snapdragon.py")
+    }
 }
 
 val wakeLibrary = rootProject.layout.buildDirectory.file("voice-deps/sherpa.aar")

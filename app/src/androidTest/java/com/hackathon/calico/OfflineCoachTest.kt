@@ -18,7 +18,7 @@ class OfflineCoachTest {
         assertTrue("Sideload the pinned model into files/models before running this device test",model.present())
         val loadAt=SystemClock.elapsedRealtime()
         NativeCoach().use { engine ->
-            engine.load(model.file.absolutePath)
+            model.open().use { engine.load(it.path,context.applicationInfo.nativeLibraryDir) }
             val loadMs=SystemClock.elapsedRealtime()-loadAt
             val snapshot=CoachSnapshot("SQUAT",8,10,false,mapOf("Go deeper" to 3),86f,176f,1000)
             val report=JSONObject().put("loadMs",loadMs)

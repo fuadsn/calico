@@ -63,6 +63,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.foundation.shape.GenericShape
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -136,7 +142,7 @@ private fun App(resumed: Int, requestedTab: Int, navigationRequest: Int) {
 private val TABS = listOf<Pair<ImageVector, String>>(
     Icons.Outlined.Home to "Home", Icons.Outlined.BarChart to "Overview",
     Icons.Outlined.FitnessCenter to "Exercises", Icons.Outlined.CameraAlt to "Scan",
-    Icons.Outlined.Mic to "Voice",
+    Lucide.Cat to "Calico",
 )
 
 @Composable
@@ -160,6 +166,7 @@ private fun Home(progress: Progress, resumed: Int, onVoice: () -> Unit) {
     val plan = remember(key) { progress.todayPlan }
     val completed = remember(key) { progress.completed }
     val level = LEVELS[remember(key) { progress.levelIndex }]
+    val kcalToday = remember(key) { progress.day(LocalDate.now()).kcal }
     com.hackathon.calico.voice.VoiceActionBindings(mapOf(
         "Start" to { startRoutine(ctx, plan) }, "Go again" to { startRoutine(ctx, plan) }
     ))
@@ -174,7 +181,7 @@ private fun Home(progress: Progress, resumed: Int, onVoice: () -> Unit) {
                     Toast.makeText(ctx, "Progress reset", Toast.LENGTH_SHORT).show()
                 }),
                 contentAlignment = Alignment.Center,
-            ) { Icon(Lucide.Cat, "Calico", tint = OnAccent, modifier = Modifier.size(28.dp)) }
+            ) { Icon(Lucide.User, "You", tint = OnAccent, modifier = Modifier.size(28.dp)) }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -199,7 +206,28 @@ private fun Home(progress: Progress, resumed: Int, onVoice: () -> Unit) {
         }
 
         Spacer(Modifier.height(24.dp))
-        WeekStrip(dates)
+        // calendar + that day's workout, one card with a bump under the chosen day
+        val today = LocalDate.now()
+        var selected by remember(key) { mutableStateOf(today) }
+        val ahead = (selected.toEpochDay() - today.toEpochDay()).toInt()
+        val dayDone = selected in dates
+        val dayStats = remember(selected, key) { progress.day(selected) }
+        val dayLevel = LEVELS[(progress.levelIndex + maxOf(0, ahead)).coerceAtMost(LEVELS.lastIndex)]
+        val daySteps = if (ahead == 0) plan else if (ahead > 0) dayLevel.steps else emptyList()
+        val dayName = if (ahead == 0) "Today" else selected.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
+        WeekStrip(dates, selected) { selected = it }
+        DayCard(
+            idx = selected.dayOfWeek.value - 1,
+            title = "$dayName's Workout",
+            subtitle = when {
+                dayDone -> "Done · ${dayStats.kcal} kcal · ${dayStats.secs / 60} min"
+                ahead < 0 -> "Rest day"
+                ahead == 0 -> "${level.title} · ${plan.size} exercises"
+                else -> "${dayLevel.title} · ${dayLevel.steps.size} exercises"
+            },
+            enabled = daySteps.isNotEmpty(),
+        ) { startRoutine(ctx, daySteps) }
+
         Spacer(Modifier.height(16.dp))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Offline coach", style = MaterialTheme.typography.labelLarge, color = Accent,
@@ -207,50 +235,29 @@ private fun Home(progress: Progress, resumed: Int, onVoice: () -> Unit) {
                     ctx.startActivity(Intent(ctx, CoachActivity::class.java))
                 }.padding(12.dp))
             Box(Modifier.size(48.dp).clip(CircleShape).background(Accent).clickable(onClick = onVoice),
-                contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Mic, "Voice", tint = OnAccent) }
+                contentAlignment = Alignment.Center) { Icon(Lucide.Cat, "Calico", tint = OnAccent) }
         }
 
-        // Today's workout
+        // calories: target / burned / remaining
         Spacer(Modifier.height(20.dp))
-        Box(Modifier.fillMaxWidth().background(Card, CardShape).padding(20.dp)) {
-            Column {
-                Text("Today's Workout", style = MaterialTheme.typography.headlineSmall, color = Ink)
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    if (doneToday) "Done for today. Go again?" else "${level.title} · ${plan.size} exercises · ${level.blurb}",
-                    style = MaterialTheme.typography.bodyMedium, color = Muted,
-                )
-                Spacer(Modifier.height(16.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Row(
-                        Modifier.clip(Pill).background(Accent).clickable { startRoutine(ctx, plan) }.padding(start = 22.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(if (doneToday) "GO AGAIN" else "START", style = MaterialTheme.typography.labelLarge, color = OnAccent)
-                        Spacer(Modifier.width(12.dp))
-                        Box(Modifier.size(36.dp).background(Snow, CircleShape), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Outlined.NorthEast, null, tint = Charcoal, modifier = Modifier.size(18.dp))
-                        }
-                    }
-                    Spacer(Modifier.weight(1f))
-                    Ring(completed.toFloat() / LEVELS.size, "${completed * 100 / LEVELS.size}%")
-                }
-            }
-        }
+        CalorieCard(KCAL_GOAL, kcalToday)
 
         // splits: two per row, calico patches in turn
         SectionTitle("Exercise splits")
-        val patches = listOf(Accent, Charcoal, Card, Snow, Charcoal, Accent)   // ginger and dark on opposite corners
+        val patches = listOf(Card, Snow, Accent, Card, Card, Snow)   // grey, light and coral on the dark ground
         SPLITS.chunked(2).forEachIndexed { r, pair ->
             Row(Modifier.padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 pair.forEachIndexed { c, split -> SplitCard(split, patches[(r * 2 + c) % patches.size], Modifier.weight(1f)) { startRoutine(ctx, split.steps) } }
             }
         }
 
-        // today's plan
-        SectionTitle("Today's plan")
-        plan.forEachIndexed { i, step ->
-            val tile = tileColor(i)
+        // the chosen day's plan: dark lower block with dark-grey and coral rows
+        if (daySteps.isNotEmpty()) {
+        Spacer(Modifier.height(24.dp))
+        Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(28.dp)).padding(16.dp)) {
+        Text("$dayName's plan", style = MaterialTheme.typography.headlineSmall, color = Ink, modifier = Modifier.padding(start = 4.dp, bottom = 12.dp))
+        daySteps.forEachIndexed { i, step ->
+            val tile = tileColor(i, AccentSoft)
             Row(
                 Modifier.fillMaxWidth().padding(bottom = 10.dp).background(tile, TileShape).padding(18.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -272,6 +279,8 @@ private fun Home(progress: Progress, resumed: Int, onVoice: () -> Unit) {
                 }
             }
         }
+        }
+        }
         Spacer(Modifier.height(16.dp))
         com.hackathon.calico.voice.HandsFreeControl()
     }
@@ -288,46 +297,124 @@ private fun SplitCard(split: Split, tile: Color, modifier: Modifier, onClick: ()
     }
 }
 
+/** Card whose top edge dips in a valley under day [idx] of the week strip above it. Tap anywhere to start. */
 @Composable
-private fun Ring(fraction: Float, text: String) {
-    Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) {
-            val s = 7.dp.toPx(); val inset = s / 2; val arc = Size(size.width - s, size.height - s)
-            drawArc(Line, 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(s))
-            drawArc(Accent, -90f, 360f * fraction, false, Offset(inset, inset), arc, style = Stroke(s, cap = StrokeCap.Round))
+private fun DayCard(idx: Int, title: String, subtitle: String, enabled: Boolean, onStart: () -> Unit) {
+    val x by animateFloatAsState(idx.toFloat(), spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow), label = "dip")
+    val d = LocalDensity.current
+    val shape = remember(x) {
+        GenericShape { size, _ ->
+            with(d) {
+                val t = DIP.toPx(); val r = 24.dp.toPx(); val w = 52.dp.toPx()
+                val cx = (WEEK_PAD + DAY / 2).toPx() + x * (size.width - (WEEK_PAD * 2 + DAY).toPx()) / 6
+                val card = Path().apply { addRoundRect(RoundRect(Rect(0f, 0f, size.width, size.height), CornerRadius(r))) }
+                val dip = Path().apply {   // rounded bowl scooped out under the chosen day
+                    moveTo(cx - w, -r)
+                    lineTo(cx - w, 0f)
+                    cubicTo(cx - w * 0.55f, 0f, cx - w * 0.5f, t, cx, t)
+                    cubicTo(cx + w * 0.5f, t, cx + w * 0.55f, 0f, cx + w, 0f)
+                    lineTo(cx + w, -r)
+                    close()
+                }
+                addPath(Path.combine(PathOperation.Difference, card, dip))
+            }
         }
-        Text(text, style = MaterialTheme.typography.labelMedium, color = Ink)
+    }
+    Row(
+        Modifier.fillMaxWidth().clip(shape).background(Card).clickable(enabled = enabled, onClick = onStart)
+            .padding(top = DIP + 18.dp, start = 22.dp, end = 18.dp, bottom = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.headlineSmall, color = Ink)
+            Spacer(Modifier.height(2.dp))
+            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = Muted)
+        }
+        if (enabled) Box(Modifier.size(48.dp).background(Accent, CircleShape), contentAlignment = Alignment.Center) {
+            Icon(Icons.Outlined.NorthEast, "Start", tint = OnAccent, modifier = Modifier.size(22.dp))
+        }
     }
 }
 
-/** Mon..Sun of this week: letters, then day numbers. Today is a strong circle, done days accent. */
+/** Target / burned / remaining legend beside a donut: coral burned, grey remaining, numbered badges on each. */
 @Composable
-private fun WeekStrip(dates: Set<LocalDate>) {
+private fun CalorieCard(target: Int, burned: Int) {
+    val remaining = maxOf(0, target - burned)
+    val f by animateFloatAsState((burned.toFloat() / target).coerceIn(0f, 1f), spring(stiffness = Spring.StiffnessLow), label = "kcal")
+    Row(Modifier.fillMaxWidth().background(Card, CardShape).padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Legend(Ink, true, "$target Kcal", "Target")
+            Legend(Accent, false, "$burned Kcal", "Burned")
+            Legend(Line, false, "$remaining Kcal", "Remaining")
+        }
+        val ring = 150.dp; val stroke = 34.dp; val pad = 14.dp
+        Box(Modifier.size(ring), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.fillMaxSize()) {
+                val s = stroke.toPx(); val inset = pad.toPx() + s / 2
+                val tl = Offset(inset, inset); val arc = Size(size.width - 2 * inset, size.height - 2 * inset)
+                drawArc(Line, -90f + 360f * f, 360f * (1 - f), false, tl, arc, style = Stroke(s))
+                if (f > 0f) drawArc(Accent, -90f, 360f * f, false, tl, arc, style = Stroke(s, cap = StrokeCap.Round))
+            }
+            val radius = (ring - stroke) / 2 - pad
+            @Composable fun badge(n: Int, deg: Float) {
+                val a = Math.toRadians(deg.toDouble())
+                Box(
+                    Modifier.offset(radius * cos(a).toFloat(), radius * sin(a).toFloat()).size(24.dp)
+                        .background(Charcoal, CircleShape).border(2.dp, Card, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) { Text("$n", style = MaterialTheme.typography.labelSmall, color = Ink) }
+            }
+            badge(1, -90f)
+            if (burned > 0) badge(2, -90f + 180f * f)
+            if (remaining > 0) badge(3, -90f + 360f * f + 180f * (1 - f))
+        }
+    }
+}
+
+@Composable
+private fun Legend(color: Color, hollow: Boolean, value: String, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(12.dp).then(if (hollow) Modifier.border(2.5.dp, color, CircleShape) else Modifier.background(color, CircleShape)))
+        Spacer(Modifier.width(10.dp))
+        Column {
+            Text(value, style = MaterialTheme.typography.titleMedium, color = Ink)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = Muted)
+        }
+    }
+}
+
+private val WEEK_PAD = 6.dp    // week strip inset
+private val DIP = 22.dp        // valley depth
+private val DAY = 38.dp        // day circle
+
+/** Mon..Sun of this week: letters, then numbers. Only the chosen day is circled; done days read coral. */
+@Composable
+private fun WeekStrip(dates: Set<LocalDate>, selected: LocalDate, onSelect: (LocalDate) -> Unit) {
     val today = LocalDate.now()
     val monday = today.minusDays((today.dayOfWeek.value - 1).toLong())
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = WEEK_PAD), horizontalArrangement = Arrangement.SpaceBetween) {
         for (i in 0..6) {
             val day = monday.plusDays(i.toLong())
-            val isToday = day == today
-            val done = day in dates
+            val on = day == selected
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()).take(1),
-                    style = MaterialTheme.typography.labelMedium, color = if (isToday) Ink else Muted,
+                    style = MaterialTheme.typography.labelLarge, color = if (day == today) Ink else Muted,
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
                 Box(
-                    Modifier.size(40.dp).background(if (isToday) Snow else if (done) Accent else Color.Transparent, CircleShape),
+                    Modifier.size(DAY).clip(CircleShape).background(if (on) Accent else Color.Transparent).clickable { onSelect(day) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         "${day.dayOfMonth}", style = MaterialTheme.typography.titleMedium,
-                        color = if (isToday) Charcoal else if (done) OnAccent else if (day < today) Ink else Muted,
+                        color = if (on) OnAccent else if (day in dates) Accent else if (day <= today) Ink else Muted,
                     )
                 }
             }
         }
     }
+    Spacer(Modifier.height(10.dp))
 }
 
 // ---------------- Overview ----------------
@@ -396,7 +483,7 @@ private fun Overview(progress: Progress, resumed: Int) {
                 val kcal = week.reversed().map { it.kcal.toFloat() }
                 val mins = week.reversed().map { it.secs / 60f }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatTile(Lucide.Repeat, "Reps", "${todayStats.reps}", "reps", Charcoal, Modifier.weight(1f)) { Sparkline(reps, Accent) }
+                    StatTile(Lucide.Repeat, "Reps", "${todayStats.reps}", "reps", Card, Modifier.weight(1f)) { Sparkline(reps, Accent) }
                     StatTile(Lucide.Flame, "Calories", "${todayStats.kcal}", "kcal", Accent, Modifier.weight(1f)) { Bars(kcal, OnAccent) }
                     StatTile(Lucide.Timer, "Time", "${todayStats.secs / 60}", "min", Snow, Modifier.weight(1f)) { Bars(mins, OnAccent) }
                 }
@@ -419,8 +506,8 @@ private fun Overview(progress: Progress, resumed: Int) {
                         GoalBar(completed.toFloat() / LEVELS.size, "${completed * 100 / LEVELS.size}%")
                     }
                     Spacer(Modifier.width(16.dp))
-                    Box(Modifier.size(64.dp).background(Snow, CircleShape), contentAlignment = Alignment.Center) {
-                        Text("${current + 1}", style = MaterialTheme.typography.headlineLarge, color = Charcoal)
+                    Box(Modifier.size(64.dp).background(Charcoal, CircleShape), contentAlignment = Alignment.Center) {
+                        Text("${current + 1}", style = MaterialTheme.typography.headlineLarge, color = Ink)
                     }
                 }
 
@@ -483,7 +570,7 @@ private fun Gauge(done: Int, goal: Int) {
             val arc = Size(size.width - s, size.width - s)
             val off = Offset(inset, inset + 6.dp.toPx())
             // hatched track: thin diagonal ticks along the arc
-            drawArc(Slate, 180f, 180f, false, off, arc, style = Stroke(s))
+            drawArc(AccentSoft, 180f, 180f, false, off, arc, style = Stroke(s))
             val cx = size.width / 2; val cy = off.y + arc.height / 2; val r = arc.width / 2
             for (i in 0..36) {
                 val a = Math.toRadians(180.0 + 5.0 * i)
@@ -509,7 +596,7 @@ private fun StatTile(icon: ImageVector, label: String, value: String, unit: Stri
     val fg = onTile(tile)
     Column(modifier.background(tile, TileShape).padding(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(22.dp).background(Card.copy(if (fg == Ink) 0.7f else 0.15f), CircleShape), contentAlignment = Alignment.Center) { Icon(icon, null, tint = fg, modifier = Modifier.size(13.dp)) }
+            Box(Modifier.size(22.dp).background(fg.copy(0.15f), CircleShape), contentAlignment = Alignment.Center) { Icon(icon, null, tint = fg, modifier = Modifier.size(13.dp)) }
             Spacer(Modifier.width(6.dp))
             Text(label, style = MaterialTheme.typography.labelSmall, color = fg)
         }

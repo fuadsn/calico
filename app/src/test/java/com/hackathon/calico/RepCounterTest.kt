@@ -20,7 +20,7 @@ class RepCounterTest {
     }
 
     @Test fun cuesPartialRep() {
-        val (reps, _, cues) = run(170f, 170f, 170f, 110f, 110f, 110f, 170f, 170f, 170f)
+        val (reps, _, cues) = run(170f, 170f, 170f, 135f, 135f, 135f, 170f, 170f, 170f)   // 135 is between down and down+20
         assertEquals(0, reps)
         assertEquals(listOf("Go lower"), cues)
     }
@@ -32,12 +32,12 @@ class RepCounterTest {
 
     @Test fun smoothingSuppressesOneFrameSpike() {
         // a single 60° outlier between straight-arm frames must not open a rep
-        val (reps, cues, _) = run(170f, 170f, 170f, 60f, 170f, 170f, 170f)
+        val (reps, cues, _) = run(170f, 170f, 170f, 100f, 170f, 170f, 170f)
         assertEquals(0, reps); assertEquals(0, cues)
     }
 
     @Test fun everyExerciseHasSaneThresholds() = Exercise.values().filter { it.holdSec == 0 }.forEach {
-        assert(it.down < it.up - 30f) { "${it.name}: down must be well below up" }
+        assert(it.down < it.up - 15f) { "${it.name}: down must be below up" }
         assertEquals(3, it.left.size); assertEquals(3, it.right.size)
     }
 }

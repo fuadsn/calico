@@ -403,7 +403,7 @@ class WorkoutActivity : ComponentActivity() {
             benchDone?.let { Text(it, Modifier.align(Alignment.CenterHorizontally).padding(8.dp), style = MaterialTheme.typography.titleMedium, color = Accent) }
             // bottom sheet
             Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)).padding(24.dp).navigationBarsPadding().padding(bottom = if (bench) 0.dp else 84.dp)) {
-                Box(Modifier.align(Alignment.CenterHorizontally).size(width = 40.dp, height = 4.dp).background(Line, Pill))
+                Box(Modifier.align(Alignment.CenterHorizontally).size(width = 40.dp, height = 4.dp).background(Muted, Pill))
                 Spacer(Modifier.height(18.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
@@ -460,10 +460,10 @@ class WorkoutActivity : ComponentActivity() {
         val next = steps[stepIndex + 1]
         Box(Modifier.fillMaxSize().background(Bg.copy(alpha = 0.9f)), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("REST", style = MaterialTheme.typography.labelMedium, color = Snow.copy(0.7f))
+                Text("REST", style = MaterialTheme.typography.labelMedium, color = Ink.copy(0.7f))
                 Text("$restLeft", style = MaterialTheme.typography.displayLarge, color = Accent)
                 Spacer(Modifier.height(24.dp))
-                Text("NEXT UP", style = MaterialTheme.typography.labelMedium, color = Snow.copy(0.7f))
+                Text("NEXT UP", style = MaterialTheme.typography.labelMedium, color = Ink.copy(0.7f))
                 Text(next.exercise.label, style = MaterialTheme.typography.headlineLarge, color = Color.White)
                 Text(
                     if (next.exercise.holdSec > 0) "hold ${next.target}s" else "×${next.target}",
