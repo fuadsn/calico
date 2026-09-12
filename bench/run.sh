@@ -11,9 +11,9 @@ for f in *.mp4; do
   adb push -q "$f" /data/local/tmp/$f
   adb shell run-as $PKG mkdir -p files
   adb shell run-as $PKG cp /data/local/tmp/$f files/
+  adb shell run-as $PKG rm -f files/bench.log
   adb shell am force-stop $PKG
   adb shell am start -W -n $PKG/.WorkoutActivity --es exercise "$exercise" --es video "$f" >/dev/null
-  adb shell run-as $PKG rm -f files/bench.log
   for _ in $(seq 1 400); do
     line=$(adb shell run-as $PKG cat files/bench.log 2>/dev/null | grep -m1 "^RESULT" || true)
     [ -n "$line" ] && break
