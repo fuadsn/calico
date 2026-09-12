@@ -7,7 +7,6 @@ import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import java.io.ByteArrayOutputStream
-import java.util.concurrent.Executors
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -20,9 +19,7 @@ data class CoachState(val ready: Boolean, val busy: Boolean = false, val progres
 class CoachViewModel(application: Application) : AndroidViewModel(application) {
     private val model = CoachModel(application)
     private val store = CoachStore(application)
-    private val dispatcher = Executors.newSingleThreadExecutor().asCoroutineDispatcher()
-    @Volatile private var engine: NativeCoach? = null
-    private var loadedPath: String? = null
+    private val dispatcher = CoachEngine.dispatcher
     private var task: Job? = null
     private val mutable = MutableStateFlow(CoachState(model.present(), snapshot=store.read(),messages=store.messages(),overview=store.overview()))
     val state = mutable.asStateFlow()
@@ -33,18 +30,24 @@ class CoachViewModel(application: Application) : AndroidViewModel(application) {
             messages=(it.messages+CoachMessage(true,question)+CoachMessage(false,answer)).takeLast(20)) }
         store.saveMessages(mutable.value.messages)
     }
-    fun download() = transfer { progress -> model.download(progress) }
-    fun import(uri: Uri) = transfer { progress -> model.import(uri,progress) }
+    /** [target] is the document the user created for the download; the file stays theirs. */
+    fun download(target: Uri) = transfer { progress -> model.download(target,progress) }
+    /** References an existing model file in place, then verifies it once. */
+    fun link(uri: Uri) = transfer { progress ->
+        model.link(uri)
+        mutable.update { it.copy(status="Checking the model file…") }
+        model.verify()
+    }
     private fun transfer(action: suspend ((Float)->Unit)->Unit) {
         if (mutable.value.busy) return
         mutable.update { it.copy(busy=true,error=null,progress=0f,status="Preparing offline coach…") }
         task = viewModelScope.launch {
             try {
                 withContext(dispatcher) {
-                    engine?.close(); engine=null
+                    CoachEngine.release()
                     action { value -> mutable.update { it.copy(progress=value,status="Saving model… ${(value*100).toInt()}%") } }
                 }
-                mutable.update { it.copy(ready=true,status="Ready. Your conversations run on this phone.") }
+                mutable.update { it.copy(ready=true,status="Ready. The model stays in ${model.location} even if Calico is reinstalled.") }
             } catch (_: CancellationException) {
                 mutable.update { it.copy(status="Setup stopped. You can retry when ready.") }
             } catch (e: Exception) {
@@ -99,17 +102,10 @@ class CoachViewModel(application: Application) : AndroidViewModel(application) {
         task = viewModelScope.launch {
             try {
                 withContext(dispatcher) {
-                    if(engine!=null && loadedPath!=model.file.absolutePath) { engine?.close(); engine=null }
-                    if (engine==null) {
-                        mutable.update { it.copy(status="Checking the local model…") }
-                        model.verify()
-                        ensureActive()
-                        mutable.update { it.copy(status="Loading offline coach…") }
-                        engine=NativeCoach().also { it.load(model.file.absolutePath) }
-                        loadedPath=model.file.absolutePath
+                    val runtime=CoachEngine.acquire(model,getApplication()) { step ->
+                        mutable.update { it.copy(status=step) }
                     }
                     ensureActive()
-                    val runtime=engine!!
                     val started=SystemClock.elapsedRealtime()
                     runtime.start(prompt)
                     val output=ByteArrayOutputStream()
@@ -149,20 +145,17 @@ class CoachViewModel(application: Application) : AndroidViewModel(application) {
             } finally { mutable.update { it.copy(busy=false) }; store.saveMessages(mutable.value.messages) }
         }
     }
-    fun stop() { task?.cancel(); engine?.cancel() }
+    fun stop() { task?.cancel(); CoachEngine.cancel() }
     fun clear() {
         if(mutable.value.busy) return
         mutable.update { it.copy(messages=emptyList(),completedAnswer=null,error=null,status="Conversation cleared.") }
         store.saveMessages(emptyList())
     }
     fun forgetWorkout() { store.clear(); clear(); refresh() }
-    fun pause() {
-        stop()
-        viewModelScope.launch(dispatcher) { engine?.close(); engine=null }
-    }
+    /** Leaving a coach screen stops generation; the loaded model stays warm for the next question. */
+    fun pause() { stop() }
     override fun onCleared() {
         stop()
-        CoroutineScope(dispatcher).launch { engine?.close(); engine=null; dispatcher.close() }
         super.onCleared()
     }
 }

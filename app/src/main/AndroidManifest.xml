@@ -15,6 +15,9 @@
         android:fullBackupContent="@xml/backup_rules"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:theme="@android:style/Theme.Material.NoActionBar">
+        <!-- FastRPC driver for the Hexagon NPU. Vendor public libraries have to be
+             declared before an app may link against them. -->
+        <uses-native-library android:name="libcdsprpc.so" android:required="false" />
         <activity android:name=".voice.VoiceAgentActivity" android:exported="false" />
         <activity android:name=".CoachActivity" android:exported="false" />
         <activity android:name=".MainActivity" android:exported="true">

@@ -4,16 +4,14 @@ package com.hackathon.calico.coach
 class NativeCoach : AutoCloseable {
     private val lock = Any()
     private var handle = 0L
-    private var legacyThinkingTemplate = false
-    fun load(path: String) {
+    /** [libraryDir] is where the Hexagon skel lives; the NPU loader opens it by path. */
+    fun load(path: String, libraryDir: String) {
         check(synchronized(lock) { handle == 0L })
-        val loaded = nativeLoad(path)
-        legacyThinkingTemplate=path.endsWith("Qwen3-1.7B-Q4_K_M.gguf")
+        val loaded = nativeLoad(path, libraryDir)
         synchronized(lock) { handle = loaded }
     }
     fun start(prompt: String) {
-        val adapted=if(legacyThinkingTemplate && prompt.endsWith("<|im_start|>assistant\n")) prompt+"<think>\n\n</think>\n\n" else prompt
-        nativeStart(synchronized(lock) { handle }, adapted.toByteArray(Charsets.UTF_8))
+        nativeStart(synchronized(lock) { handle }, prompt.toByteArray(Charsets.UTF_8))
     }
     fun next(): ByteArray? = nativeNext(synchronized(lock) { handle })
     fun cancel() = synchronized(lock) { if (handle != 0L) nativeCancel(handle) }
@@ -21,7 +19,7 @@ class NativeCoach : AutoCloseable {
         val old = synchronized(lock) { handle.also { handle = 0L } }
         if (old != 0L) nativeFree(old)
     }
-    private external fun nativeLoad(path: String): Long
+    private external fun nativeLoad(path: String, libraryDir: String): Long
     private external fun nativeStart(handle: Long, prompt: ByteArray)
     private external fun nativeNext(handle: Long): ByteArray?
     private external fun nativeCancel(handle: Long)

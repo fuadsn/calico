@@ -3,11 +3,20 @@
 Offline calisthenics coach for Android. Scans your room, turns furniture into a workout, counts reps with on-device pose tracking.
 
 ## Run
-Open in Android Studio and run on a device, or:
+The offline coach runs Qwen3-4B on the phone's Hexagon NPU, and its llama.cpp libraries are
+cross-compiled once in Qualcomm's toolchain container. With Docker Desktop running:
+
+```
+python tools/build-llama-snapdragon.py
+```
+
+Then open in Android Studio and run on a device, or:
 
 ```
 ./gradlew :app:assembleDebug && adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
+
+See [docs/offline-coach.md](docs/offline-coach.md) for what that build produces.
 
 ## Bench clips
 On the workout screen tap **REC**, do the reps, tap **STOP**, enter the true count. The clip is saved on the phone as `EXERCISE-live<counted>_<true>.mp4`. Then:
