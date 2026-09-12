@@ -228,8 +228,8 @@ private fun Home(progress: Progress, resumed: Int, onVoice: () -> Unit) {
                     ) {
                         Text(if (doneToday) "GO AGAIN" else "START", style = MaterialTheme.typography.labelLarge, color = OnAccent)
                         Spacer(Modifier.width(12.dp))
-                        Box(Modifier.size(36.dp).background(Snow, CircleShape), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Outlined.NorthEast, null, tint = Charcoal, modifier = Modifier.size(18.dp))
+                        Box(Modifier.size(36.dp).background(Charcoal, CircleShape), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Outlined.NorthEast, null, tint = Ink, modifier = Modifier.size(18.dp))
                         }
                     }
                     Spacer(Modifier.weight(1f))
@@ -422,8 +422,8 @@ private fun Overview(progress: Progress, resumed: Int) {
                         GoalBar(completed.toFloat() / LEVELS.size, "${completed * 100 / LEVELS.size}%")
                     }
                     Spacer(Modifier.width(16.dp))
-                    Box(Modifier.size(64.dp).background(Snow, CircleShape), contentAlignment = Alignment.Center) {
-                        Text("${current + 1}", style = MaterialTheme.typography.headlineLarge, color = Charcoal)
+                    Box(Modifier.size(64.dp).background(Charcoal, CircleShape), contentAlignment = Alignment.Center) {
+                        Text("${current + 1}", style = MaterialTheme.typography.headlineLarge, color = Ink)
                     }
                 }
 

@@ -90,10 +90,10 @@ fun BumpBar(items: List<Pair<ImageVector, String>>, selected: Int, modifier: Mod
 fun GoalBar(fraction: Float, text: String, modifier: Modifier = Modifier) {
     val f by animateFloatAsState(fraction.coerceIn(0f, 1f), spring(stiffness = Spring.StiffnessLow), label = "bar")
     Box(
-        modifier.fillMaxWidth().height(36.dp).clip(Pill).border(2.dp, Ink.copy(0.35f), Pill)
+        modifier.fillMaxWidth().height(36.dp).clip(Pill).border(2.dp, Charcoal.copy(0.35f), Pill)
             .drawBehind {   // hatched remainder
                 val step = 7.dp.toPx(); var x = -size.height
-                while (x < size.width) { drawLine(Ink.copy(0.25f), Offset(x, size.height), Offset(x + size.height, 0f), 1.5.dp.toPx()); x += step }
+                while (x < size.width) { drawLine(Charcoal.copy(0.35f), Offset(x, size.height), Offset(x + size.height, 0f), 1.5.dp.toPx()); x += step }
             }
             .padding(5.dp),
     ) {
@@ -101,7 +101,7 @@ fun GoalBar(fraction: Float, text: String, modifier: Modifier = Modifier) {
             Box(Modifier.fillMaxWidth().fillMaxHeight().background(Accent, Pill), contentAlignment = Alignment.Center) {
                 Text(text, style = MaterialTheme.typography.labelSmall, color = OnAccent)
             }
-            Box(Modifier.align(Alignment.BottomEnd).offset(x = 3.dp, y = 5.dp).size(12.dp).background(Snow, CircleShape))
+            Box(Modifier.align(Alignment.BottomEnd).offset(x = 3.dp, y = 5.dp).size(12.dp).background(Charcoal, CircleShape))
         }
     }
 }
