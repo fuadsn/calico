@@ -63,6 +63,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -160,6 +162,7 @@ private fun Home(progress: Progress, resumed: Int, onVoice: () -> Unit) {
     val plan = remember(key) { progress.todayPlan }
     val completed = remember(key) { progress.completed }
     val level = LEVELS[remember(key) { progress.levelIndex }]
+    val kcalToday = remember(key) { progress.day(LocalDate.now()).kcal }
     com.hackathon.calico.voice.VoiceActionBindings(mapOf(
         "Start" to { startRoutine(ctx, plan) }, "Go again" to { startRoutine(ctx, plan) }
     ))
@@ -199,7 +202,29 @@ private fun Home(progress: Progress, resumed: Int, onVoice: () -> Unit) {
         }
 
         Spacer(Modifier.height(24.dp))
-        WeekStrip(dates)
+        // calendar + that day's workout, one card with a bump under the chosen day
+        val today = LocalDate.now()
+        var selected by remember(key) { mutableStateOf(today) }
+        val ahead = (selected.toEpochDay() - today.toEpochDay()).toInt()
+        val dayDone = selected in dates
+        val dayStats = remember(selected, key) { progress.day(selected) }
+        val dayLevel = LEVELS[(progress.levelIndex + maxOf(0, ahead)).coerceAtMost(LEVELS.lastIndex)]
+        val daySteps = if (ahead == 0) plan else if (ahead > 0) dayLevel.steps else emptyList()
+        val dayName = if (ahead == 0) "Today" else selected.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
+        WeekStrip(dates, selected) { selected = it }
+        DayCard(
+            idx = selected.dayOfWeek.value - 1,
+            title = "$dayName's Workout",
+            subtitle = when {
+                dayDone -> "Done · ${dayStats.reps} reps · ${dayStats.kcal} kcal · ${dayStats.secs / 60} min"
+                ahead < 0 -> "No workout logged"
+                ahead == 0 -> "${level.title} · ${plan.size} exercises · ${level.blurb}"
+                else -> "Up next · ${dayLevel.title} · ${dayLevel.steps.size} exercises"
+            },
+            steps = daySteps,
+            button = when { dayDone && ahead == 0 -> "GO AGAIN"; daySteps.isNotEmpty() -> "START"; else -> null },
+        ) { startRoutine(ctx, daySteps) }
+
         Spacer(Modifier.height(16.dp))
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Text("Offline coach", style = MaterialTheme.typography.labelLarge, color = Accent,
@@ -210,33 +235,9 @@ private fun Home(progress: Progress, resumed: Int, onVoice: () -> Unit) {
                 contentAlignment = Alignment.Center) { Icon(Lucide.Cat, "Calico", tint = OnAccent) }
         }
 
-        // Today's workout
+        // calories: target / burned / remaining
         Spacer(Modifier.height(20.dp))
-        Box(Modifier.fillMaxWidth().background(Card, CardShape).padding(20.dp)) {
-            Column {
-                Text("Today's Workout", style = MaterialTheme.typography.headlineSmall, color = Ink)
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    if (doneToday) "Done for today. Go again?" else "${level.title} · ${plan.size} exercises · ${level.blurb}",
-                    style = MaterialTheme.typography.bodyMedium, color = Muted,
-                )
-                Spacer(Modifier.height(16.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Row(
-                        Modifier.clip(Pill).background(Accent).clickable { startRoutine(ctx, plan) }.padding(start = 22.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(if (doneToday) "GO AGAIN" else "START", style = MaterialTheme.typography.labelLarge, color = OnAccent)
-                        Spacer(Modifier.width(12.dp))
-                        Box(Modifier.size(36.dp).background(Charcoal, CircleShape), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Outlined.NorthEast, null, tint = Ink, modifier = Modifier.size(18.dp))
-                        }
-                    }
-                    Spacer(Modifier.weight(1f))
-                    Ring(completed.toFloat() / LEVELS.size, "${completed * 100 / LEVELS.size}%")
-                }
-            }
-        }
+        CalorieCard(KCAL_GOAL, kcalToday)
 
         // splits: two per row, calico patches in turn
         SectionTitle("Exercise splits")
@@ -247,11 +248,12 @@ private fun Home(progress: Progress, resumed: Int, onVoice: () -> Unit) {
             }
         }
 
-        // today's plan: dark lower block with dark-grey and coral rows
+        // the chosen day's plan: dark lower block with dark-grey and coral rows
+        if (daySteps.isNotEmpty()) {
         Spacer(Modifier.height(24.dp))
         Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(28.dp)).padding(16.dp)) {
-        Text("Today's plan", style = MaterialTheme.typography.headlineSmall, color = Ink, modifier = Modifier.padding(start = 4.dp, bottom = 12.dp))
-        plan.forEachIndexed { i, step ->
+        Text("$dayName's plan", style = MaterialTheme.typography.headlineSmall, color = Ink, modifier = Modifier.padding(start = 4.dp, bottom = 12.dp))
+        daySteps.forEachIndexed { i, step ->
             val tile = tileColor(i, AccentSoft)
             Row(
                 Modifier.fillMaxWidth().padding(bottom = 10.dp).background(tile, TileShape).padding(18.dp),
@@ -275,6 +277,7 @@ private fun Home(progress: Progress, resumed: Int, onVoice: () -> Unit) {
             }
         }
         }
+        }
         Spacer(Modifier.height(16.dp))
         com.hackathon.calico.voice.HandsFreeControl()
     }
@@ -291,46 +294,135 @@ private fun SplitCard(split: Split, tile: Color, modifier: Modifier, onClick: ()
     }
 }
 
+/** Card whose top edge rises in a hill under day [idx] of the week strip above it. */
 @Composable
-private fun Ring(fraction: Float, text: String) {
-    Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) {
-        Canvas(Modifier.fillMaxSize()) {
-            val s = 7.dp.toPx(); val inset = s / 2; val arc = Size(size.width - s, size.height - s)
-            drawArc(Line, 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(s))
-            drawArc(Accent, -90f, 360f * fraction, false, Offset(inset, inset), arc, style = Stroke(s, cap = StrokeCap.Round))
+private fun DayCard(idx: Int, title: String, subtitle: String, steps: List<Step>, button: String?, onStart: () -> Unit) {
+    val x by animateFloatAsState(idx.toFloat(), spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow), label = "bump")
+    val bump = 20.dp
+    Column(
+        Modifier.fillMaxWidth().drawBehind {
+            val t = bump.toPx(); val r = 20.dp.toPx(); val w = 30.dp.toPx()
+            val cx = (WEEK_PAD + 20.dp).toPx() + x * (size.width - (WEEK_PAD * 2 + 40.dp).toPx()) / 6
+            val p = Path().apply {
+                moveTo(0f, t + r)
+                arcTo(Rect(0f, t, 2 * r, t + 2 * r), 180f, 90f, false)
+                lineTo(cx - w, t)
+                cubicTo(cx - w * 0.45f, t, cx - w * 0.55f, 0f, cx, 0f)
+                cubicTo(cx + w * 0.55f, 0f, cx + w * 0.45f, t, cx + w, t)
+                lineTo(size.width - r, t)
+                arcTo(Rect(size.width - 2 * r, t, size.width, t + 2 * r), 270f, 90f, false)
+                lineTo(size.width, size.height - r)
+                arcTo(Rect(size.width - 2 * r, size.height - 2 * r, size.width, size.height), 0f, 90f, false)
+                lineTo(r, size.height)
+                arcTo(Rect(0f, size.height - 2 * r, 2 * r, size.height), 90f, 90f, false)
+                close()
+            }
+            drawPath(p, Card)
+        }.padding(top = bump + 16.dp, start = 20.dp, end = 20.dp, bottom = 20.dp),
+    ) {
+        Text(title, style = MaterialTheme.typography.headlineSmall, color = Ink)
+        Spacer(Modifier.height(2.dp))
+        Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = Muted)
+        if (steps.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text(steps.joinToString(" · ") { it.exercise.label }, style = MaterialTheme.typography.labelSmall, color = Ink.copy(0.7f))
         }
-        Text(text, style = MaterialTheme.typography.labelMedium, color = Ink)
+        if (button != null) {
+            Spacer(Modifier.height(16.dp))
+            Row(
+                Modifier.clip(Pill).background(Accent).clickable(onClick = onStart).padding(start = 22.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(button, style = MaterialTheme.typography.labelLarge, color = OnAccent)
+                Spacer(Modifier.width(12.dp))
+                Box(Modifier.size(36.dp).background(Charcoal, CircleShape), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.NorthEast, null, tint = Ink, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
     }
 }
 
-/** Mon..Sun of this week: letters, then day numbers. Today is a strong circle, done days accent. */
+/** Target / burned / remaining legend beside a donut: coral burned, grey remaining, numbered badges on each. */
 @Composable
-private fun WeekStrip(dates: Set<LocalDate>) {
+private fun CalorieCard(target: Int, burned: Int) {
+    val remaining = maxOf(0, target - burned)
+    val f by animateFloatAsState((burned.toFloat() / target).coerceIn(0f, 1f), spring(stiffness = Spring.StiffnessLow), label = "kcal")
+    Row(Modifier.fillMaxWidth().background(Card, CardShape).padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+            Legend(Ink, true, "$target Kcal", "Target")
+            Legend(Accent, false, "$burned Kcal", "Burned")
+            Legend(Line, false, "$remaining Kcal", "Remaining")
+        }
+        val ring = 150.dp; val stroke = 34.dp; val pad = 14.dp
+        Box(Modifier.size(ring), contentAlignment = Alignment.Center) {
+            Canvas(Modifier.fillMaxSize()) {
+                val s = stroke.toPx(); val inset = pad.toPx() + s / 2
+                val tl = Offset(inset, inset); val arc = Size(size.width - 2 * inset, size.height - 2 * inset)
+                drawArc(Line, -90f + 360f * f, 360f * (1 - f), false, tl, arc, style = Stroke(s))
+                if (f > 0f) drawArc(Accent, -90f, 360f * f, false, tl, arc, style = Stroke(s, cap = StrokeCap.Round))
+            }
+            val radius = (ring - stroke) / 2 - pad
+            @Composable fun badge(n: Int, deg: Float) {
+                val a = Math.toRadians(deg.toDouble())
+                Box(
+                    Modifier.offset(radius * cos(a).toFloat(), radius * sin(a).toFloat()).size(24.dp)
+                        .background(Charcoal, CircleShape).border(2.dp, Card, CircleShape),
+                    contentAlignment = Alignment.Center,
+                ) { Text("$n", style = MaterialTheme.typography.labelSmall, color = Ink) }
+            }
+            badge(1, -90f)
+            if (burned > 0) badge(2, -90f + 180f * f)
+            if (remaining > 0) badge(3, -90f + 360f * f + 180f * (1 - f))
+        }
+    }
+}
+
+@Composable
+private fun Legend(color: Color, hollow: Boolean, value: String, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.size(12.dp).then(if (hollow) Modifier.border(2.5.dp, color, CircleShape) else Modifier.background(color, CircleShape)))
+        Spacer(Modifier.width(10.dp))
+        Column {
+            Text(value, style = MaterialTheme.typography.titleMedium, color = Ink)
+            Text(label, style = MaterialTheme.typography.labelSmall, color = Muted)
+        }
+    }
+}
+
+private val WEEK_PAD = 30.dp   // week strip inset so the card's hill fits under the first and last day
+
+/** Mon..Sun of this week. Chosen day is a coral circle, done days light, tap to pick. */
+@Composable
+private fun WeekStrip(dates: Set<LocalDate>, selected: LocalDate, onSelect: (LocalDate) -> Unit) {
     val today = LocalDate.now()
     val monday = today.minusDays((today.dayOfWeek.value - 1).toLong())
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = WEEK_PAD), horizontalArrangement = Arrangement.SpaceBetween) {
         for (i in 0..6) {
             val day = monday.plusDays(i.toLong())
-            val isToday = day == today
+            val on = day == selected
             val done = day in dates
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()).take(1),
-                    style = MaterialTheme.typography.labelMedium, color = if (isToday) Ink else Muted,
+                    style = MaterialTheme.typography.labelMedium, color = if (day == today) Ink else Muted,
                 )
                 Spacer(Modifier.height(8.dp))
                 Box(
-                    Modifier.size(40.dp).background(if (isToday) Snow else if (done) Accent else Color.Transparent, CircleShape),
+                    Modifier.size(40.dp).clip(CircleShape)
+                        .background(if (on) Accent else if (done) Snow else Color.Transparent)
+                        .clickable { onSelect(day) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         "${day.dayOfMonth}", style = MaterialTheme.typography.titleMedium,
-                        color = if (isToday) Charcoal else if (done) OnAccent else if (day < today) Ink else Muted,
+                        color = if (on || done) Charcoal else if (day <= today) Ink else Muted,
                     )
                 }
             }
         }
     }
+    Spacer(Modifier.height(10.dp))
 }
 
 // ---------------- Overview ----------------
