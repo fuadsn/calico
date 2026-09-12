@@ -90,7 +90,7 @@ fun GoalBar(fraction: Float, text: String, modifier: Modifier = Modifier) {
             Box(Modifier.fillMaxWidth().fillMaxHeight().background(Snow, Pill), contentAlignment = Alignment.Center) {
                 Text(text, style = MaterialTheme.typography.labelSmall, color = Charcoal)
             }
-            Box(Modifier.align(Alignment.BottomEnd).offset(x = 3.dp, y = 5.dp).size(12.dp).background(PillBg, CircleShape))
+            Box(Modifier.align(Alignment.BottomEnd).offset(x = 3.dp, y = 5.dp).size(12.dp).background(Accent, CircleShape))
         }
     }
 }
