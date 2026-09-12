@@ -65,6 +65,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -298,25 +300,22 @@ private fun SplitCard(split: Split, tile: Color, modifier: Modifier, onClick: ()
 @Composable
 private fun DayCard(idx: Int, title: String, subtitle: String, steps: List<Step>, button: String?, onStart: () -> Unit) {
     val x by animateFloatAsState(idx.toFloat(), spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow), label = "bump")
-    val bump = 20.dp
+    val bump = 18.dp
     Column(
         Modifier.fillMaxWidth().drawBehind {
-            val t = bump.toPx(); val r = 20.dp.toPx(); val w = 30.dp.toPx()
-            val cx = (WEEK_PAD + 20.dp).toPx() + x * (size.width - (WEEK_PAD * 2 + 40.dp).toPx()) / 6
-            val p = Path().apply {
-                moveTo(0f, t + r)
-                arcTo(Rect(0f, t, 2 * r, t + 2 * r), 180f, 90f, false)
+            val t = bump.toPx(); val r = 22.dp.toPx()
+            val cx = (WEEK_PAD + DAY / 2).toPx() + x * (size.width - (WEEK_PAD * 2 + DAY).toPx()) / 6
+            val w = minOf(38.dp.toPx(), cx - r, size.width - r - cx)   // narrower at the ends so the foot stays clear of the corners
+            val card = Path().apply { addRoundRect(RoundRect(Rect(0f, t, size.width, size.height), CornerRadius(r))) }
+            val hill = Path().apply {   // smooth mound under the chosen day; unioned so it can run into a corner
+                moveTo(cx - w, t + r)
                 lineTo(cx - w, t)
-                cubicTo(cx - w * 0.45f, t, cx - w * 0.55f, 0f, cx, 0f)
-                cubicTo(cx + w * 0.55f, 0f, cx + w * 0.45f, t, cx + w, t)
-                lineTo(size.width - r, t)
-                arcTo(Rect(size.width - 2 * r, t, size.width, t + 2 * r), 270f, 90f, false)
-                lineTo(size.width, size.height - r)
-                arcTo(Rect(size.width - 2 * r, size.height - 2 * r, size.width, size.height), 0f, 90f, false)
-                lineTo(r, size.height)
-                arcTo(Rect(0f, size.height - 2 * r, 2 * r, size.height), 90f, 90f, false)
+                cubicTo(cx - w * 0.5f, t, cx - w * 0.55f, 0f, cx, 0f)
+                cubicTo(cx + w * 0.55f, 0f, cx + w * 0.5f, t, cx + w, t)
+                lineTo(cx + w, t + r)
                 close()
             }
+            val p = Path.combine(PathOperation.Union, card, hill)
             drawPath(p, Card)
         }.padding(top = bump + 16.dp, start = 20.dp, end = 20.dp, bottom = 20.dp),
     ) {
@@ -390,9 +389,10 @@ private fun Legend(color: Color, hollow: Boolean, value: String, label: String) 
     }
 }
 
-private val WEEK_PAD = 30.dp   // week strip inset so the card's hill fits under the first and last day
+private val WEEK_PAD = 26.dp   // week strip inset
+private val DAY = 38.dp        // day circle
 
-/** Mon..Sun of this week. Chosen day is a coral circle, done days light, tap to pick. */
+/** Mon..Sun of this week: letters, then numbers. Only the chosen day is circled; done days read coral. */
 @Composable
 private fun WeekStrip(dates: Set<LocalDate>, selected: LocalDate, onSelect: (LocalDate) -> Unit) {
     val today = LocalDate.now()
@@ -401,28 +401,25 @@ private fun WeekStrip(dates: Set<LocalDate>, selected: LocalDate, onSelect: (Loc
         for (i in 0..6) {
             val day = monday.plusDays(i.toLong())
             val on = day == selected
-            val done = day in dates
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()).take(1),
-                    style = MaterialTheme.typography.labelMedium, color = if (day == today) Ink else Muted,
+                    style = MaterialTheme.typography.labelLarge, color = if (day == today) Ink else Muted,
                 )
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(6.dp))
                 Box(
-                    Modifier.size(40.dp).clip(CircleShape)
-                        .background(if (on) Accent else if (done) Snow else Color.Transparent)
-                        .clickable { onSelect(day) },
+                    Modifier.size(DAY).clip(CircleShape).background(if (on) Accent else Color.Transparent).clickable { onSelect(day) },
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         "${day.dayOfMonth}", style = MaterialTheme.typography.titleMedium,
-                        color = if (on || done) Charcoal else if (day <= today) Ink else Muted,
+                        color = if (on) OnAccent else if (day in dates) Accent else if (day <= today) Ink else Muted,
                     )
                 }
             }
         }
     }
-    Spacer(Modifier.height(10.dp))
+    Spacer(Modifier.height(2.dp))
 }
 
 // ---------------- Overview ----------------
