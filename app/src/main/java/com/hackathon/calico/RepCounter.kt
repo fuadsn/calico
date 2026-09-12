@@ -58,10 +58,15 @@ fun angle(ax: Float, ay: Float, bx: Float, by: Float, cx: Float, cy: Float): Flo
  * Angles are smoothed over the last 3 samples and reps closer than MIN_REP_MS apart are ignored,
  * so landmark jitter at the turnaround can't double count.
  */
-class RepCounter(val exercise: Exercise, private val onRep: (Int) -> Unit, private val onCue: (String) -> Unit) {
+class RepCounter(
+    val exercise: Exercise,
+    private val onRep: (Int) -> Unit,
+    private val onCue: (String) -> Unit,
+    val holdSec: Int = exercise.holdSec,   // a level can ask for a longer or shorter hold
+) {
     var count = 0; private set
     var cues = 0; private set
-    val done get() = exercise.holdSec > 0 && count >= exercise.holdSec
+    val done get() = holdSec > 0 && count >= holdSec
     private var isDown = false
     private var minAngle = 180f
     private var lastRepAt = -MIN_REP_MS
