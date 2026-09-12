@@ -37,6 +37,16 @@ import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.outlined.PlayArrow
+import androidx.compose.material3.Icon
+import androidx.compose.runtime.remember
+import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -54,12 +64,8 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -100,7 +106,7 @@ import kotlin.math.abs
  *              and logs "CALICO_BENCH exercise=.. reps=.. cues=.. frames=.."
  */
 class WorkoutActivity : ComponentActivity() {
-    private enum class Phase { RUNNING, REST, DONE }
+    private enum class Phase { RUNNING, PAUSED, REST, DONE }
 
     // camera + model
     private lateinit var previewView: PreviewView
@@ -210,7 +216,7 @@ class WorkoutActivity : ComponentActivity() {
 
     @Composable
     private fun Screen() {
-        Box(Modifier.fillMaxSize().background(Ink)) {
+        Box(Modifier.fillMaxSize().background(Navy)) {
             if (phase == Phase.DONE && !bench) { Complete(); return@Box }
             if (bench) benchFrame?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
             else AndroidView({ previewView }, Modifier.fillMaxSize())
@@ -225,61 +231,82 @@ class WorkoutActivity : ComponentActivity() {
         val step = steps[stepIndex]
         val hold = step.exercise.holdSec > 0
         val target = step.target
-        val progress by animateFloatAsState(
-            if (target == Int.MAX_VALUE) 0f else (count.toFloat() / target).coerceIn(0f, 1f), tween(250), label = "ring",
-        )
-        Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(20.dp)) {
-            // header
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        val open = target == Int.MAX_VALUE
+        // elapsed clock
+        var elapsed by remember { mutableIntStateOf(0) }
+        LaunchedEffect(Unit) { while (true) { delay(1000); elapsed = ((SystemClock.uptimeMillis() - startedAt) / 1000).toInt() } }
+
+        Column(Modifier.fillMaxSize()) {
+            // top: title + pause, side stat pill
+            Row(Modifier.statusBarsPadding().padding(20.dp), verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
+                    Text("Your Workout", style = MaterialTheme.typography.headlineLarge, color = Snow)
                     Text(
-                        (if (step.warmup) "WARM-UP · " else "") + if (steps.size > 1) "STEP ${stepIndex + 1} OF ${steps.size}" else "FREE SET",
-                        style = MaterialTheme.typography.labelSmall, color = Lime,
+                        (if (step.warmup) "Warm-up · " else "") + step.exercise.label,
+                        style = MaterialTheme.typography.titleMedium, color = Snow.copy(0.85f),
                     )
-                    Text(step.exercise.label, style = MaterialTheme.typography.headlineLarge, color = Snow)
-                }
-                if (steps.size > 1) Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    steps.indices.forEach { i ->
-                        Box(Modifier.size(width = 18.dp, height = 6.dp).background(if (i <= stepIndex) Lime else Surface2, CircleShape))
-                    }
-                }
-            }
-            Spacer(Modifier.height(12.dp))
-            // counter ring
-            Box(Modifier.size(180.dp).align(Alignment.CenterHorizontally), contentAlignment = Alignment.Center) {
-                Canvas(Modifier.fillMaxSize()) {
-                    val stroke = 12.dp.toPx()
-                    val inset = stroke / 2
-                    val arc = Size(size.width - stroke, size.height - stroke)
-                    drawArc(Surface2.copy(alpha = 0.8f), 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(stroke))
-                    drawArc(Lime, -90f, 360f * progress, false, Offset(inset, inset), arc, style = Stroke(stroke, cap = StrokeCap.Round))
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(if (hold) "${count}s" else "$count", style = MaterialTheme.typography.displayMedium, color = Snow)
-                    if (target != Int.MAX_VALUE) Text(
-                        if (hold) "of ${target}s" else "of $target",
-                        style = MaterialTheme.typography.titleMedium, color = Fog,
-                    )
+                    Box(
+                        Modifier.size(52.dp).background(Snow, CircleShape).clickable { phase = if (phase == Phase.PAUSED) Phase.RUNNING else Phase.PAUSED },
+                        contentAlignment = Alignment.Center,
+                    ) { Icon(if (phase == Phase.PAUSED) Icons.Outlined.PlayArrow else Icons.Outlined.Pause, "pause", tint = Navy) }
+                    Spacer(Modifier.height(14.dp))
+                    Column(Modifier.background(Snow, Pill).padding(horizontal = 14.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text(if (open) "$count" else "$count / $target", style = MaterialTheme.typography.titleMedium, color = Ink)
+                        Text(if (hold) "seconds" else "reps", style = MaterialTheme.typography.labelSmall, color = Muted)
+                        if (steps.size > 1) {
+                            Spacer(Modifier.height(8.dp))
+                            steps.indices.forEach { i ->
+                                Box(Modifier.padding(vertical = 2.dp).size(width = 34.dp, height = 8.dp).background(if (i <= stepIndex) Purple else PurpleSoft, Pill))
+                            }
+                        }
+                    }
                 }
             }
             Spacer(Modifier.weight(1f))
             // form cue
             val c = cue
-            var visible by androidx.compose.runtime.remember { mutableStateOf(false) }
-            LaunchedEffect(c?.second) { if (c != null) { visible = true; kotlinx.coroutines.delay(1600); visible = false } }
-            AnimatedVisibility(visible, Modifier.align(Alignment.CenterHorizontally), enter = fadeIn(), exit = fadeOut()) {
-                Surface(shape = RoundedCornerShape(16.dp), color = Ember) {
-                    Text(c?.first ?: "", Modifier.padding(horizontal = 20.dp, vertical = 12.dp), style = MaterialTheme.typography.headlineSmall, color = Ink)
-                }
+            var visible by remember { mutableStateOf(false) }
+            LaunchedEffect(c?.second) { if (c != null) { visible = true; delay(1600); visible = false } }
+            AnimatedVisibility(visible, Modifier.align(Alignment.CenterHorizontally).padding(bottom = 16.dp), enter = fadeIn(), exit = fadeOut()) {
+                Text(c?.first ?: "", Modifier.background(Lime, Pill).padding(horizontal = 22.dp, vertical = 12.dp), style = MaterialTheme.typography.titleLarge, color = Navy)
             }
-            Spacer(Modifier.height(16.dp))
-            benchDone?.let { Text(it, style = MaterialTheme.typography.titleMedium, color = Lime) }
-            // footer
-            if (!bench) Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = ::toggleRecord) { Text(if (recordingNow) "■ STOP" else "● REC", color = if (recordingNow) Ember else Fog) }
-                Spacer(Modifier.weight(1f))
-                if (target != Int.MAX_VALUE) TextButton(onClick = ::advance) {
-                    Text(if (stepIndex == steps.lastIndex) "FINISH" else "SKIP", style = MaterialTheme.typography.labelLarge, color = Snow)
+            benchDone?.let { Text(it, Modifier.align(Alignment.CenterHorizontally).padding(8.dp), style = MaterialTheme.typography.titleMedium, color = Lime) }
+            // bottom sheet
+            Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)).padding(24.dp).navigationBarsPadding()) {
+                Box(Modifier.align(Alignment.CenterHorizontally).size(width = 40.dp, height = 4.dp).background(Line, Pill))
+                Spacer(Modifier.height(18.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Elapsed", style = MaterialTheme.typography.labelMedium, color = Muted)
+                        Text("%02d:%02d".format(elapsed / 60, elapsed % 60), style = MaterialTheme.typography.titleLarge, color = Ink)
+                    }
+                    Text(
+                        if (hold) "${count}s" else "$count",
+                        style = MaterialTheme.typography.displayLarge, color = Navy,
+                        modifier = Modifier.background(Navy.copy(0.06f), TileShape).padding(horizontal = 24.dp, vertical = 4.dp),
+                    )
+                    Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+                        Text("Step", style = MaterialTheme.typography.labelMedium, color = Muted)
+                        Text(if (steps.size > 1) "${stepIndex + 1}/${steps.size}" else "free", style = MaterialTheme.typography.titleLarge, color = Ink)
+                    }
+                }
+                if (!bench) {
+                    Spacer(Modifier.height(18.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            if (recordingNow) "■ STOP REC" else "● REC",
+                            Modifier.clickable(onClick = ::toggleRecord).padding(8.dp),
+                            style = MaterialTheme.typography.labelMedium, color = if (recordingNow) Purple else Muted,
+                        )
+                        Spacer(Modifier.weight(1f))
+                        if (!open) Text(
+                            if (stepIndex == steps.lastIndex) "FINISH" else "SKIP",
+                            Modifier.background(Navy, Pill).clickable(onClick = ::advance).padding(horizontal = 26.dp, vertical = 14.dp),
+                            style = MaterialTheme.typography.labelLarge, color = Lime,
+                        )
+                    }
                 }
             }
         }
@@ -288,12 +315,12 @@ class WorkoutActivity : ComponentActivity() {
     @Composable
     private fun Rest() {
         val next = steps[stepIndex + 1]
-        Box(Modifier.fillMaxSize().background(Ink.copy(alpha = 0.88f)), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize().background(Navy.copy(alpha = 0.86f)), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("REST", style = MaterialTheme.typography.labelSmall, color = Fog)
+                Text("REST", style = MaterialTheme.typography.labelMedium, color = Snow.copy(0.7f))
                 Text("$restLeft", style = MaterialTheme.typography.displayLarge, color = Lime)
                 Spacer(Modifier.height(24.dp))
-                Text("NEXT UP", style = MaterialTheme.typography.labelSmall, color = Fog)
+                Text("NEXT UP", style = MaterialTheme.typography.labelMedium, color = Snow.copy(0.7f))
                 Text(next.exercise.label, style = MaterialTheme.typography.headlineLarge, color = Snow)
                 Text(
                     if (next.exercise.holdSec > 0) "hold ${next.target}s" else "×${next.target}",
@@ -305,44 +332,77 @@ class WorkoutActivity : ComponentActivity() {
 
     @Composable
     private fun Complete() {
-        val streak by animateIntAsState(streakAfter, tween(1200, delayMillis = 400), label = "streak")
+        val hit = results.count { (s, got) -> got >= s.target }
+        val pct = if (results.isEmpty()) 0 else hit * 100 / results.size
+        val gauge by animateFloatAsState(pct / 100f, tween(1200, delayMillis = 300), label = "gauge")
+        val streak by animateIntAsState(streakAfter, tween(900, delayMillis = 900), label = "streak")
         val secs = (SystemClock.uptimeMillis() - startedAt) / 1000
         Column(
-            Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding().padding(24.dp),
+            Modifier.fillMaxSize().background(Bg).statusBarsPadding().navigationBarsPadding().verticalScroll(rememberScrollState()).padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Spacer(Modifier.height(40.dp))
-            Text("WORKOUT COMPLETE", style = MaterialTheme.typography.labelSmall, color = Lime)
-            Spacer(Modifier.height(16.dp))
-            Text("🔥", style = MaterialTheme.typography.displayMedium)
-            Text("${if (streak == 0) streakBefore else streak}", style = MaterialTheme.typography.displayLarge, color = Snow)
-            Text(
-                if (streakAfter > streakBefore) "day streak  •  +1" else "day streak",
-                style = MaterialTheme.typography.titleMedium, color = Fog,
-            )
-            Spacer(Modifier.height(32.dp))
-            Surface(shape = RoundedCornerShape(20.dp), color = Surface1, modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    results.forEach { (s, got) ->
-                        Row {
-                            Text(s.exercise.label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                            val unit = if (s.exercise.holdSec > 0) "s" else ""
-                            Text("$got$unit / ${s.target}$unit", style = MaterialTheme.typography.titleMedium, color = if (got >= s.target) Lime else Ember)
-                        }
+            Spacer(Modifier.height(24.dp))
+            Text("Great Work!", style = MaterialTheme.typography.bodyLarge, color = Muted)
+            Text("Workout Complete 🔥", style = MaterialTheme.typography.displayMedium, color = Ink, textAlign = TextAlign.Center)
+            Spacer(Modifier.height(20.dp))
+            // semicircle gauge
+            Box(Modifier.size(260.dp, 150.dp), contentAlignment = Alignment.BottomCenter) {
+                Canvas(Modifier.fillMaxSize()) {
+                    val s = 34.dp.toPx(); val d = size.width - s
+                    val tl = Offset(s / 2, s / 2); val sz = Size(d, d)
+                    drawArc(Line, 180f, 180f, false, tl, sz, style = Stroke(s, cap = StrokeCap.Round))
+                    drawArc(Purple, 180f, 180f * gauge, false, tl, sz, style = Stroke(s, cap = StrokeCap.Round))
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        Text("${(gauge * 100).toInt()}", style = MaterialTheme.typography.displayLarge, color = Ink)
+                        Text("%", style = MaterialTheme.typography.titleLarge, color = Ink, modifier = Modifier.padding(bottom = 12.dp))
                     }
-                    Row {
-                        Text("Time", style = MaterialTheme.typography.titleMedium, color = Fog, modifier = Modifier.weight(1f))
-                        Text("${secs / 60}m ${secs % 60}s", style = MaterialTheme.typography.titleMedium, color = Fog)
-                    }
+                    Text("Targets hit", style = MaterialTheme.typography.labelMedium, color = Muted)
                 }
             }
-            Spacer(Modifier.weight(1f))
-            Button(
-                onClick = ::finish,
-                modifier = Modifier.fillMaxWidth().height(64.dp),
-                shape = RoundedCornerShape(20.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Lime, contentColor = Ink),
-            ) { Text("BACK HOME", style = MaterialTheme.typography.labelLarge) }
+            Spacer(Modifier.height(20.dp))
+            Row(Modifier.fillMaxWidth().background(Lime, Pill).padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("🔥", fontSize = 22.sp)
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    "${if (streak == 0) streakBefore else streak} day streak" + if (streakAfter > streakBefore) "  ·  +1" else "",
+                    style = MaterialTheme.typography.titleMedium, color = Ink,
+                )
+                Spacer(Modifier.weight(1f))
+                Text("${secs / 60}m ${secs % 60}s", style = MaterialTheme.typography.labelMedium, color = Ink.copy(0.7f))
+            }
+            Spacer(Modifier.height(24.dp))
+            Row(Modifier.fillMaxWidth()) { Text("Today Stats", style = MaterialTheme.typography.headlineSmall, color = Ink) }
+            Spacer(Modifier.height(12.dp))
+            results.chunked(2).forEach { pair ->
+                Row(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    pair.forEachIndexed { j, (s, got) ->
+                        val ok = got >= s.target
+                        Column(Modifier.weight(1f).background(Card, TileShape).padding(16.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(Modifier.size(8.dp).background(if (ok) Purple else Pink, CircleShape))
+                                Spacer(Modifier.width(8.dp))
+                                Text(s.exercise.label, style = MaterialTheme.typography.labelMedium, color = Muted)
+                            }
+                            Spacer(Modifier.height(10.dp))
+                            Row(verticalAlignment = Alignment.Bottom) {
+                                Text("$got", style = MaterialTheme.typography.headlineLarge, color = Ink)
+                                Spacer(Modifier.width(6.dp))
+                                Text("/ ${s.target}${if (s.exercise.holdSec > 0) "s" else ""}", style = MaterialTheme.typography.labelSmall, color = Muted, modifier = Modifier.padding(bottom = 6.dp))
+                            }
+                        }
+                    }
+                    if (pair.size == 1) Spacer(Modifier.weight(1f))
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "BACK HOME",
+                Modifier.fillMaxWidth().background(Navy, Pill).clickable(onClick = ::finish).padding(vertical = 20.dp),
+                style = MaterialTheme.typography.labelLarge, color = Lime, textAlign = TextAlign.Center,
+            )
+            Spacer(Modifier.height(8.dp))
         }
     }
 

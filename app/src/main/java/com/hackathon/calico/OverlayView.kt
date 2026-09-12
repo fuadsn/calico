@@ -14,9 +14,9 @@ class OverlayView(ctx: Context, attrs: AttributeSet?) : View(ctx, attrs) {
     private var imgW = 1; private var imgH = 1
     var highlight: IntArray = IntArray(0)   // joint triple currently being measured
 
-    private val line = Paint().apply { color = Color.CYAN; strokeWidth = 8f; style = Paint.Style.STROKE }
-    private val dot = Paint().apply { color = Color.YELLOW; style = Paint.Style.FILL }
-    private val hot = Paint().apply { color = Color.RED; style = Paint.Style.FILL }
+    private val line = Paint().apply { color = 0xFFD9F56B.toInt(); strokeWidth = 8f; style = Paint.Style.STROKE }
+    private val dot = Paint().apply { color = 0xFFFFFFFF.toInt(); style = Paint.Style.FILL }
+    private val hot = Paint().apply { color = 0xFF8B7CF6.toInt(); style = Paint.Style.FILL }
 
     fun update(landmarks: List<NormalizedLandmark>, imageWidth: Int, imageHeight: Int) {
         points = landmarks; imgW = imageWidth; imgH = imageHeight
