@@ -21,6 +21,8 @@ enum class Sides { ONE, SUM, EITHER }
  * Rep exercise (holdSec == 0): one rep = angle drops below `down`, then rises above `up`.
  * Hold exercise (holdSec > 0): time accumulates while angle is within [down, up]; done at holdSec.
  */
+// ponytail: thresholds tuned from bench traces with the phone on the floor, which foreshortens
+// joints by ~30°. Upgrade path: calibrate min/max from the user's first rep if camera height varies.
 enum class Exercise(
     val left: IntArray, val right: IntArray,
     val down: Float, val up: Float,
@@ -29,14 +31,14 @@ enum class Exercise(
     val sides: Sides = Sides.ONE,
 ) {
     // ---- reps ----
-    INCLINE_PUSHUP(ELBOW_L, ELBOW_R, 90f, 160f, "Go lower", Orientation.ANY),   // hands on a chair/counter
-    PUSHUP(ELBOW_L, ELBOW_R, 90f, 160f, "Go lower", Orientation.HORIZONTAL),
-    PIKE_PUSHUP(ELBOW_L, ELBOW_R, 90f, 160f, "Go lower", Orientation.ANY),
+    INCLINE_PUSHUP(ELBOW_L, ELBOW_R, 130f, 150f, "Go lower", Orientation.ANY),   // hands on a chair/counter
+    PUSHUP(ELBOW_L, ELBOW_R, 125f, 150f, "Go lower", Orientation.HORIZONTAL),
+    PIKE_PUSHUP(ELBOW_L, ELBOW_R, 120f, 150f, "Go lower", Orientation.ANY),
     DIP(ELBOW_L, ELBOW_R, 90f, 160f, "Go lower", Orientation.UPRIGHT),
     PULLUP(ELBOW_L, ELBOW_R, 70f, 150f, "Chin over the bar", Orientation.UPRIGHT),
-    SQUAT(KNEE_L, KNEE_R, 100f, 165f, "Go deeper", Orientation.UPRIGHT),
+    SQUAT(KNEE_L, KNEE_R, 130f, 155f, "Go deeper", Orientation.UPRIGHT),
     LUNGE(KNEE_L, KNEE_R, 100f, 160f, "Go deeper", Orientation.UPRIGHT),
-    SITUP(HIP_L, HIP_R, 80f, 140f, "All the way up", Orientation.ANY),
+    SITUP(HIP_L, HIP_R, 95f, 130f, "All the way up", Orientation.ANY),
     LEG_RAISE(HIPLEG_L, HIPLEG_R, 100f, 160f, "Legs higher", Orientation.HORIZONTAL),
     MOUNTAIN_CLIMBER(KNEE_L, KNEE_R, 90f, 150f, "Knee to chest", Orientation.HORIZONTAL, sides = Sides.SUM),
     HIGH_KNEES(KNEE_L, KNEE_R, 120f, 155f, "Knees higher", Orientation.UPRIGHT, sides = Sides.SUM),
@@ -92,7 +94,7 @@ class RepCounter(
         if (angle > exercise.up) {
             if (isDown) {
                 if (timeMs - lastRepAt >= MIN_REP_MS) { count++; lastRepAt = timeMs; onRep(count) }
-            } else if (minAngle < exercise.up - 30f) { cues++; onCue(exercise.cue) }  // dipped, but not enough
+            } else if (minAngle < exercise.down + 20f) { cues++; onCue(exercise.cue) }  // dipped, but not enough
             isDown = false
             minAngle = 180f
         }

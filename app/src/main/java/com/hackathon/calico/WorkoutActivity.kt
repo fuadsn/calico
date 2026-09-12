@@ -512,6 +512,14 @@ class WorkoutActivity : ComponentActivity() {
     private fun onPose(result: PoseLandmarkerResult, w: Int, h: Int) {
         val pose = result.landmarks().firstOrNull()
         overlay.update(pose ?: emptyList(), w, h)
+        if (pose != null && benchLog != null) {   // bench trace: raw gate inputs for every frame
+            val dx = (pose[11].x() + pose[12].x() - pose[23].x() - pose[24].x()) / 2f
+            val dy = (pose[11].y() + pose[12].y() - pose[23].y() - pose[24].y()) / 2f
+            val e = counter.exercise
+            fun v(idx: IntArray) = idx.minOf { pose[it].visibility().orElse(0f) }
+            val dz = (pose[11].z() + pose[12].z() - pose[23].z() - pose[24].z()) / 2f
+            benchLog?.println("gate t=${result.timestampMs()} dx=${"%.2f".format(dx)} dy=${"%.2f".format(dy)} dz=${"%.2f".format(dz)} visL=${"%.2f".format(v(e.left))} visR=${"%.2f".format(v(e.right))} ok=${orientationOk(pose)}")
+        }
         if (pose == null || phase != Phase.RUNNING || counter.done || !orientationOk(pose)) return
 
         val e = counter.exercise
@@ -539,9 +547,15 @@ class WorkoutActivity : ComponentActivity() {
     private fun orientationOk(p: List<NormalizedLandmark>): Boolean {
         val dx = (p[11].x() + p[12].x() - p[23].x() - p[24].x()) / 2f
         val dy = (p[11].y() + p[12].y() - p[23].y() - p[24].y()) / 2f
+        // upright = shoulders clearly above hips. Anything else (lying, planking, or a torso pointing
+        // at the camera in a front-view pushup) counts as horizontal.
+        // A front-view pushup looks upright in 2D (hips appear above the shoulders), but the shoulders are
+        // far closer to the camera: model depth puts them > 0.45 nearer. Standing stays within ±0.15.
+        val dz = (p[11].z() + p[12].z() - p[23].z() - p[24].z()) / 2f
+        val upright = dy < 0 && abs(dy) > abs(dx) && dz > -0.35f
         return when (counter.exercise.orientation) {
-            Orientation.UPRIGHT -> abs(dy) > abs(dx)
-            Orientation.HORIZONTAL -> abs(dx) > abs(dy)
+            Orientation.UPRIGHT -> upright
+            Orientation.HORIZONTAL -> !upright
             Orientation.ANY -> true
         }
     }
