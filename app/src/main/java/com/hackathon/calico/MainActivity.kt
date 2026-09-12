@@ -242,36 +242,6 @@ private fun Home(progress: Progress, resumed: Int) {
             }
         }
 
-        // the chosen day's plan: dark lower block with dark-grey and coral rows
-        if (daySteps.isNotEmpty()) {
-        Spacer(Modifier.height(24.dp))
-        Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(28.dp)).padding(16.dp)) {
-        Text("$dayName's plan", style = MaterialTheme.typography.headlineSmall, color = Ink, modifier = Modifier.padding(start = 4.dp, bottom = 12.dp))
-        daySteps.forEachIndexed { i, step ->
-            val tile = tileColor(i, AccentSoft)
-            Row(
-                Modifier.fillMaxWidth().padding(bottom = 10.dp).background(tile, TileShape).padding(18.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(Modifier.weight(1f)) {
-                    Text(step.exercise.label, style = MaterialTheme.typography.titleLarge, color = onTile(tile))
-                    Text("View workout", color = onTile(tile).copy(0.8f), style = MaterialTheme.typography.labelMedium,
-                        modifier = Modifier.clickable {
-                            ctx.startActivity(Intent(ctx, com.calico.roomscan.PreviewActivity::class.java)
-                                .putExtra("exercise", step.exercise.name))
-                        }.padding(vertical = 6.dp))
-                    Text(if (step.warmup) "Warm-up" else "Workout", style = MaterialTheme.typography.labelSmall, color = onTile(tile).copy(0.6f))
-                }
-                Box(Modifier.size(58.dp).background(onTile(tile), CircleShape), contentAlignment = Alignment.Center) {
-                    Text(
-                        if (step.exercise.holdSec > 0) "${step.target}s" else "×${step.target}",
-                        style = MaterialTheme.typography.titleMedium, color = tile,
-                    )
-                }
-            }
-        }
-        }
-        }
         Spacer(Modifier.height(16.dp))
         com.hackathon.calico.voice.HandsFreeControl()
     }
