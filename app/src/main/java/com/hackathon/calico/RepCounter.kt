@@ -3,12 +3,32 @@ package com.hackathon.calico
 import kotlin.math.abs
 import kotlin.math.atan2
 
-/** Which joint triple to measure and the angle thresholds that define one rep. MediaPipe indices. */
-enum class Exercise(val left: IntArray, val right: IntArray, val down: Float, val up: Float, val cue: String) {
-    // elbow angle: shoulder-elbow-wrist
-    PUSHUP(intArrayOf(11, 13, 15), intArrayOf(12, 14, 16), down = 90f, up = 160f, cue = "Go lower"),
-    // knee angle: hip-knee-ankle
-    SQUAT(intArrayOf(23, 25, 27), intArrayOf(24, 26, 28), down = 100f, up = 165f, cue = "Go deeper"),
+// MediaPipe pose landmark indices, as (a, b, c) triples; the angle is measured at b.
+private val ELBOW_L = intArrayOf(11, 13, 15); private val ELBOW_R = intArrayOf(12, 14, 16)  // shoulder-elbow-wrist
+private val KNEE_L = intArrayOf(23, 25, 27);  private val KNEE_R = intArrayOf(24, 26, 28)   // hip-knee-ankle
+private val HIP_L = intArrayOf(11, 23, 25);   private val HIP_R = intArrayOf(12, 24, 26)    // shoulder-hip-knee
+private val HIPLEG_L = intArrayOf(11, 23, 27); private val HIPLEG_R = intArrayOf(12, 24, 28) // shoulder-hip-ankle
+private val ARM_L = intArrayOf(23, 11, 15);   private val ARM_R = intArrayOf(24, 12, 16)    // hip-shoulder-wrist
+
+/** Torso direction required for a frame to count. Blocks e.g. arm-folding from counting as pushups. */
+enum class Orientation { UPRIGHT, HORIZONTAL, ANY }
+
+/** One rep = angle drops below `down`, then rises above `up`. */
+enum class Exercise(
+    val left: IntArray, val right: IntArray,
+    val down: Float, val up: Float,
+    val cue: String, val orientation: Orientation,
+) {
+    PUSHUP(ELBOW_L, ELBOW_R, 90f, 160f, "Go lower", Orientation.HORIZONTAL),
+    PIKE_PUSHUP(ELBOW_L, ELBOW_R, 90f, 160f, "Go lower", Orientation.ANY),
+    DIP(ELBOW_L, ELBOW_R, 90f, 160f, "Go lower", Orientation.UPRIGHT),
+    PULLUP(ELBOW_L, ELBOW_R, 70f, 150f, "Chin over the bar", Orientation.UPRIGHT),
+    SQUAT(KNEE_L, KNEE_R, 100f, 165f, "Go deeper", Orientation.UPRIGHT),
+    LUNGE(KNEE_L, KNEE_R, 100f, 160f, "Go deeper", Orientation.UPRIGHT),
+    SITUP(HIP_L, HIP_R, 80f, 140f, "All the way up", Orientation.ANY),
+    LEG_RAISE(HIPLEG_L, HIPLEG_R, 100f, 160f, "Legs higher", Orientation.HORIZONTAL),
+    MOUNTAIN_CLIMBER(KNEE_L, KNEE_R, 90f, 150f, "Knee to chest", Orientation.HORIZONTAL),
+    JUMPING_JACK(ARM_L, ARM_R, 40f, 130f, "Arms all the way up", Orientation.UPRIGHT),
 }
 
 /** Angle at b (degrees, 0..180) formed by a-b-c. */
@@ -20,23 +40,31 @@ fun angle(ax: Float, ay: Float, bx: Float, by: Float, cx: Float, cy: Float): Flo
 
 /**
  * Two-state machine: UP -> (angle < down) -> DOWN -> (angle > up) -> UP, count++.
- * onRep(count) fires on each completed rep; onCue(text) fires when the user comes back up
- * without having gone deep enough.
+ * Angles are smoothed over the last 3 samples and reps closer than MIN_REP_MS apart are ignored,
+ * so landmark jitter at the turnaround can't double count.
  */
 class RepCounter(val exercise: Exercise, private val onRep: (Int) -> Unit, private val onCue: (String) -> Unit) {
     var count = 0; private set
+    var cues = 0; private set
     private var isDown = false
     private var minAngle = 180f
+    private var lastRepAt = -MIN_REP_MS
+    private val window = FloatArray(3); private var n = 0
 
-    fun feed(angle: Float) {
+    fun feed(rawAngle: Float, timeMs: Long) {
+        window[n++ % window.size] = rawAngle
+        val angle = window.take(minOf(n, window.size)).average().toFloat()
+
         minAngle = minOf(minAngle, angle)
         if (!isDown && angle < exercise.down) isDown = true
         if (angle > exercise.up) {
-            if (isDown) { count++; onRep(count) }
-            // ponytail: partial-rep cue only if they dipped at least 30° but not to threshold
-            else if (minAngle < exercise.up - 30f) onCue(exercise.cue)
+            if (isDown) {
+                if (timeMs - lastRepAt >= MIN_REP_MS) { count++; lastRepAt = timeMs; onRep(count) }
+            } else if (minAngle < exercise.up - 30f) { cues++; onCue(exercise.cue) }  // dipped, but not enough
             isDown = false
             minAngle = 180f
         }
     }
+
+    companion object { const val MIN_REP_MS = 300L }
 }
