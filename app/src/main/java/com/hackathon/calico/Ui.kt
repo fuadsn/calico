@@ -75,7 +75,6 @@ fun BumpBar(items: List<Pair<ImageVector, String>>, selected: Int, modifier: Mod
                 val bounds = Path().apply { addRoundRect(RoundRect(Rect(0f, b - h, size.width, size.height - b + h), CornerRadius(r + h))) }
                 val p = Path.combine(PathOperation.Union, pill, Path.combine(PathOperation.Intersect, hill, bounds))
                 drawPath(p, PillBg)
-                drawPath(p, onTile(Cloud), style = Stroke(3.dp.toPx()))
                 drawCircle(Accent, disc, Offset(cx, cy))   // the coral disc slides with the swell
             }
             .padding(horizontal = BUMP, vertical = BUMP + 4.dp),
