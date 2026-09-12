@@ -90,7 +90,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge(statusBarStyle = SystemBarStyle.light(0, 0), navigationBarStyle = SystemBarStyle.light(0, 0))
+        enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(0), navigationBarStyle = SystemBarStyle.dark(0))
         requestedTab.intValue=intent.getIntExtra("tab",0)
         setContent { CalicoTheme { App(resumed.intValue,requestedTab.intValue,navigationRequest.intValue) } }
     }
@@ -240,7 +240,7 @@ private fun Home(progress: Progress, resumed: Int, onVoice: () -> Unit) {
 
         // splits: two per row, calico patches in turn
         SectionTitle("Exercise splits")
-        val patches = listOf(Card, Snow, Accent, Card, Card, Snow)   // white, dark and coral like the reference
+        val patches = listOf(Card, Snow, Accent, Card, Card, Snow)   // grey, light and coral on the dark ground
         SPLITS.chunked(2).forEachIndexed { r, pair ->
             Row(Modifier.padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 pair.forEachIndexed { c, split -> SplitCard(split, patches[(r * 2 + c) % patches.size], Modifier.weight(1f)) { startRoutine(ctx, split.steps) } }
@@ -249,10 +249,10 @@ private fun Home(progress: Progress, resumed: Int, onVoice: () -> Unit) {
 
         // today's plan: dark lower block with dark-grey and coral rows
         Spacer(Modifier.height(24.dp))
-        Column(Modifier.fillMaxWidth().background(Snow, RoundedCornerShape(28.dp)).padding(16.dp)) {
-        Text("Today's plan", style = MaterialTheme.typography.headlineSmall, color = Card, modifier = Modifier.padding(start = 4.dp, bottom = 12.dp))
+        Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(28.dp)).padding(16.dp)) {
+        Text("Today's plan", style = MaterialTheme.typography.headlineSmall, color = Ink, modifier = Modifier.padding(start = 4.dp, bottom = 12.dp))
         plan.forEachIndexed { i, step ->
-            val tile = tileColor(i)
+            val tile = tileColor(i, AccentSoft)
             Row(
                 Modifier.fillMaxWidth().padding(bottom = 10.dp).background(tile, TileShape).padding(18.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -399,7 +399,7 @@ private fun Overview(progress: Progress, resumed: Int) {
                 val kcal = week.reversed().map { it.kcal.toFloat() }
                 val mins = week.reversed().map { it.secs / 60f }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    StatTile(Lucide.Repeat, "Reps", "${todayStats.reps}", "reps", Charcoal, Modifier.weight(1f)) { Sparkline(reps, Accent) }
+                    StatTile(Lucide.Repeat, "Reps", "${todayStats.reps}", "reps", Card, Modifier.weight(1f)) { Sparkline(reps, Accent) }
                     StatTile(Lucide.Flame, "Calories", "${todayStats.kcal}", "kcal", Accent, Modifier.weight(1f)) { Bars(kcal, OnAccent) }
                     StatTile(Lucide.Timer, "Time", "${todayStats.secs / 60}", "min", Snow, Modifier.weight(1f)) { Bars(mins, OnAccent) }
                 }
@@ -486,7 +486,7 @@ private fun Gauge(done: Int, goal: Int) {
             val arc = Size(size.width - s, size.width - s)
             val off = Offset(inset, inset + 6.dp.toPx())
             // hatched track: thin diagonal ticks along the arc
-            drawArc(Slate, 180f, 180f, false, off, arc, style = Stroke(s))
+            drawArc(AccentSoft, 180f, 180f, false, off, arc, style = Stroke(s))
             val cx = size.width / 2; val cy = off.y + arc.height / 2; val r = arc.width / 2
             for (i in 0..36) {
                 val a = Math.toRadians(180.0 + 5.0 * i)
@@ -512,7 +512,7 @@ private fun StatTile(icon: ImageVector, label: String, value: String, unit: Stri
     val fg = onTile(tile)
     Column(modifier.background(tile, TileShape).padding(12.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(22.dp).background(Card.copy(if (fg == Ink) 0.7f else 0.15f), CircleShape), contentAlignment = Alignment.Center) { Icon(icon, null, tint = fg, modifier = Modifier.size(13.dp)) }
+            Box(Modifier.size(22.dp).background(fg.copy(0.15f), CircleShape), contentAlignment = Alignment.Center) { Icon(icon, null, tint = fg, modifier = Modifier.size(13.dp)) }
             Spacer(Modifier.width(6.dp))
             Text(label, style = MaterialTheme.typography.labelSmall, color = fg)
         }

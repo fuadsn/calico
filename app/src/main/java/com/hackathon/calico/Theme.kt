@@ -3,7 +3,7 @@ package com.hackathon.calico
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -12,27 +12,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// Palette: light grey ground, white cards, coral accent, near-black blocks and tiles, hatched remainders.
-val Bg = Color(0xFFECEDEF)          // screen background: light grey
-val Card = Color(0xFFFFFFFF)        // surfaces: white
-val Charcoal = Color(0xFFF3F4F6)    // light tiles, chips; also text on Snow pills
-val Slate = Color(0xFFE2E3E7)       // secondary light tiles
-val Accent = Color(0xFFE8737B)      // coral: accent, selected, progress
-val AccentSoft = Color(0xFF2C2C30)  // dark grey tile inside dark blocks
-val OnAccent = Color(0xFFFFFFFF)    // text and icons placed on the accent
-val Cloud = Color(0xFFF0F1F3)       // unselected nav circles
-val Snow = Color(0xFF1E1E21)        // near-black for pills, bubbles and the lower block
-val PillBg = Color(0xFFFFFFFF)      // floating bars
-val Ink = Color(0xFF1B1B1E)         // primary text
-val Muted = Color(0xFF8B8C93)       // secondary text
-val Line = Color(0xFFDCDDE1)        // hairlines, inactive path
+// Palette: dark grey ground, lighter grey components, coral accent paired with dark only, light blocks as the second colour.
+val Bg = Color(0xFF292929)          // screen ground: primary dark
+val Card = Color(0xFF3A3E3B)        // components: slightly lighter grey
+val Charcoal = Color(0xFF292929)    // dark text/icons on light blocks; empty heatmap cells
+val Slate = Color(0xFF5C6268)       // secondary text on light blocks
+val Accent = Color(0xFFF36B78)      // coral: only ever sits on dark
+val AccentSoft = Color(0xFF4A4F4C)  // nested component grey inside Card
+val OnAccent = Color(0xFF292929)    // dark text on coral
+val Cloud = Color(0xFF3A3E3B)       // unselected nav circles
+val Snow = Color(0xFFD8E1E8)        // light blocks, pills, knobs
+val PillBg = Color(0xFF3A3E3B)      // floating bars
+val Ink = Color(0xFFF2F4F6)         // primary text on dark
+val Muted = Color(0xFF9DA3A6)       // secondary text on dark
+val Line = Color(0xFF4A4F4C)        // hairlines, inactive path
 
 // Radii: cards 24, tiles 20, everything tappable is a pill.
 val CardShape = RoundedCornerShape(24.dp)
 val TileShape = RoundedCornerShape(20.dp)
 val Pill = RoundedCornerShape(50)
 
-private val Scheme = lightColorScheme(
+private val Scheme = darkColorScheme(
     primary = Accent, onPrimary = OnAccent,
     secondary = Snow, onSecondary = Bg,
     background = Bg, onBackground = Ink,
@@ -63,8 +63,8 @@ fun CalicoTheme(content: @Composable () -> Unit) =
 /** "PIKE_PUSHUP" -> "Pike pushup" */
 val Exercise.label get() = name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }
 
-/** Tile colour per step: greys with a sage one every fourth. */
-fun tileColor(i: Int) = listOf(AccentSoft, Accent)[i % 2]
+/** Tile colour per step: mostly [base], a light one and a coral one every fourth. */
+fun tileColor(i: Int, base: Color = Card) = listOf(base, Snow, base, Accent)[i % 4]
 
 /** Text colour that reads on a given tile. */
-fun onTile(c: Color) = if (c.luminance() > 0.4f) Ink else Card
+fun onTile(c: Color) = if (c.luminance() > 0.25f) Charcoal else Ink

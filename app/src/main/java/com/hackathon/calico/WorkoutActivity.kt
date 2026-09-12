@@ -402,13 +402,13 @@ class WorkoutActivity : ComponentActivity() {
             }
             benchDone?.let { Text(it, Modifier.align(Alignment.CenterHorizontally).padding(8.dp), style = MaterialTheme.typography.titleMedium, color = Accent) }
             // bottom sheet
-            Column(Modifier.fillMaxWidth().background(Snow, RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)).padding(24.dp).navigationBarsPadding().padding(bottom = if (bench) 0.dp else 84.dp)) {
+            Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)).padding(24.dp).navigationBarsPadding().padding(bottom = if (bench) 0.dp else 84.dp)) {
                 Box(Modifier.align(Alignment.CenterHorizontally).size(width = 40.dp, height = 4.dp).background(Muted, Pill))
                 Spacer(Modifier.height(18.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("Elapsed", style = MaterialTheme.typography.labelMedium, color = Muted)
-                        Text("%02d:%02d".format(elapsed / 60, elapsed % 60), style = MaterialTheme.typography.titleLarge, color = Card)
+                        Text("%02d:%02d".format(elapsed / 60, elapsed % 60), style = MaterialTheme.typography.titleLarge, color = Ink)
                     }
                     Text(
                         if (hold) "${count}s" else "$count",
@@ -417,7 +417,7 @@ class WorkoutActivity : ComponentActivity() {
                     )
                     Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
                         Text("Step", style = MaterialTheme.typography.labelMedium, color = Muted)
-                        Text(if (steps.size > 1) "${stepIndex + 1}/${steps.size}" else "free", style = MaterialTheme.typography.titleLarge, color = Card)
+                        Text(if (steps.size > 1) "${stepIndex + 1}/${steps.size}" else "free", style = MaterialTheme.typography.titleLarge, color = Ink)
                     }
                 }
                 if (!bench) {
@@ -460,10 +460,10 @@ class WorkoutActivity : ComponentActivity() {
         val next = steps[stepIndex + 1]
         Box(Modifier.fillMaxSize().background(Bg.copy(alpha = 0.9f)), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text("REST", style = MaterialTheme.typography.labelMedium, color = Snow.copy(0.7f))
+                Text("REST", style = MaterialTheme.typography.labelMedium, color = Ink.copy(0.7f))
                 Text("$restLeft", style = MaterialTheme.typography.displayLarge, color = Accent)
                 Spacer(Modifier.height(24.dp))
-                Text("NEXT UP", style = MaterialTheme.typography.labelMedium, color = Snow.copy(0.7f))
+                Text("NEXT UP", style = MaterialTheme.typography.labelMedium, color = Ink.copy(0.7f))
                 Text(next.exercise.label, style = MaterialTheme.typography.headlineLarge, color = Color.White)
                 Text(
                     if (next.exercise.holdSec > 0) "hold ${next.target}s" else "×${next.target}",
