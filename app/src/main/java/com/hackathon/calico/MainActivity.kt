@@ -296,28 +296,27 @@ private fun SplitCard(split: Split, tile: Color, modifier: Modifier, onClick: ()
     }
 }
 
-/** Card whose top edge rises in a hill under day [idx] of the week strip above it. */
+/** Card whose top edge dips in a valley under day [idx] of the week strip above it. */
 @Composable
 private fun DayCard(idx: Int, title: String, subtitle: String, steps: List<Step>, button: String?, onStart: () -> Unit) {
-    val x by animateFloatAsState(idx.toFloat(), spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow), label = "bump")
-    val bump = 18.dp
+    val x by animateFloatAsState(idx.toFloat(), spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow), label = "dip")
+    val dipDepth = 16.dp
     Column(
         Modifier.fillMaxWidth().drawBehind {
-            val t = bump.toPx(); val r = 22.dp.toPx()
+            val t = dipDepth.toPx(); val r = 24.dp.toPx(); val w = 36.dp.toPx()
             val cx = (WEEK_PAD + DAY / 2).toPx() + x * (size.width - (WEEK_PAD * 2 + DAY).toPx()) / 6
-            val w = minOf(38.dp.toPx(), cx - r, size.width - r - cx)   // narrower at the ends so the foot stays clear of the corners
-            val card = Path().apply { addRoundRect(RoundRect(Rect(0f, t, size.width, size.height), CornerRadius(r))) }
-            val hill = Path().apply {   // smooth mound under the chosen day; unioned so it can run into a corner
-                moveTo(cx - w, t + r)
-                lineTo(cx - w, t)
-                cubicTo(cx - w * 0.5f, t, cx - w * 0.55f, 0f, cx, 0f)
-                cubicTo(cx + w * 0.55f, 0f, cx + w * 0.5f, t, cx + w, t)
-                lineTo(cx + w, t + r)
+            val card = Path().apply { addRoundRect(RoundRect(Rect(0f, 0f, size.width, size.height), CornerRadius(r))) }
+            val dip = Path().apply {   // smooth valley scooped out under the chosen day
+                moveTo(cx - w, -r)
+                lineTo(cx - w, 0f)
+                cubicTo(cx - w * 0.5f, 0f, cx - w * 0.55f, t, cx, t)
+                cubicTo(cx + w * 0.55f, t, cx + w * 0.5f, 0f, cx + w, 0f)
+                lineTo(cx + w, -r)
                 close()
             }
-            val p = Path.combine(PathOperation.Union, card, hill)
+            val p = Path.combine(PathOperation.Difference, card, dip)
             drawPath(p, Card)
-        }.padding(top = bump + 16.dp, start = 20.dp, end = 20.dp, bottom = 20.dp),
+        }.padding(top = dipDepth + 16.dp, start = 20.dp, end = 20.dp, bottom = 20.dp),
     ) {
         Text(title, style = MaterialTheme.typography.headlineSmall, color = Ink)
         Spacer(Modifier.height(2.dp))
@@ -389,7 +388,7 @@ private fun Legend(color: Color, hollow: Boolean, value: String, label: String) 
     }
 }
 
-private val WEEK_PAD = 26.dp   // week strip inset
+private val WEEK_PAD = 6.dp    // week strip inset
 private val DAY = 38.dp        // day circle
 
 /** Mon..Sun of this week: letters, then numbers. Only the chosen day is circled; done days read coral. */
@@ -419,7 +418,7 @@ private fun WeekStrip(dates: Set<LocalDate>, selected: LocalDate, onSelect: (Loc
             }
         }
     }
-    Spacer(Modifier.height(2.dp))
+    Spacer(Modifier.height(10.dp))
 }
 
 // ---------------- Overview ----------------
