@@ -32,13 +32,14 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
-import kotlin.math.abs
-import kotlin.math.cos
-import kotlin.math.sin
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.RoundRect
+import androidx.compose.ui.graphics.PathOperation
 
 private val BTN = 56.dp
 private val GAP = 12.dp
-private val BUMP = 10.dp
+private val BUMP = 12.dp
 
 /**
  * Floating pill of circular buttons. The pill's outline swells around the selected one and the
@@ -52,33 +53,21 @@ fun BumpBar(items: List<Pair<ImageVector, String>>, selected: Int, modifier: Mod
     Row(
         modifier.navigationBarsPadding().padding(bottom = 12.dp)
             .drawBehind {
-                // Pill outline pushed outwards by a bell curve centred on the selected button, so the
-                // swell is smooth in the middle and wraps the end caps too. Polyline, ~130 points.
-                val b = BUMP.toPx(); val top = b; val bot = size.height - b; val r = (bot - top) / 2
-                val cy = (top + bot) / 2; val wd = size.width
+                // Pill body unioned with a circle around the selected button, so the outline is a true circle where it swells.
+                val b = BUMP.toPx(); val r = (buttonSize / 2 + 4.dp).toPx(); val cy = size.height / 2
                 val cx = (BUMP + buttonSize / 2).toPx() + sel * (buttonSize + gap).toPx()
-                val w = 46.dp.toPx()
-                fun bell(x: Float): Float { val u = (x - cx) / w; return if (abs(u) >= 1f) 0f else { val t = 1 - u * u; t * t } }
-                val p = Path()
-                var first = true
-                fun add(x: Float, y: Float, nx: Float, ny: Float) {
-                    val o = b * bell(x)
-                    if (first) { p.moveTo(x + nx * o, y + ny * o); first = false } else p.lineTo(x + nx * o, y + ny * o)
-                }
-                for (i in 0..40) add(r + (wd - 2 * r) * i / 40f, top, 0f, -1f)
-                for (i in 1..24) { val a = Math.toRadians(-90.0 + 180.0 * i / 24); val nx = cos(a).toFloat(); val ny = sin(a).toFloat(); add(wd - r + r * nx, cy + r * ny, nx, ny) }
-                for (i in 0..40) add(wd - r - (wd - 2 * r) * i / 40f, bot, 0f, 1f)
-                for (i in 1..24) { val a = Math.toRadians(90.0 + 180.0 * i / 24); val nx = cos(a).toFloat(); val ny = sin(a).toFloat(); add(r + r * nx, cy + r * ny, nx, ny) }
-                p.close()
+                val pill = Path().apply { addRoundRect(RoundRect(Rect(0f, b, size.width, size.height - b), CornerRadius(r))) }
+                val circle = Path().apply { addOval(Rect(Offset(cx, cy), (buttonSize / 2).toPx() * 1.2f + 10.dp.toPx())) }
+                val p = Path.combine(PathOperation.Union, pill, circle)
                 drawPath(p, PillBg)
                 drawPath(p, onTile(Cloud), style = Stroke(3.dp.toPx()))
             }
-            .padding(horizontal = BUMP, vertical = BUMP + 8.dp),
+            .padding(horizontal = BUMP, vertical = BUMP + 4.dp),
         horizontalArrangement = Arrangement.spacedBy(gap),
     ) {
         items.forEachIndexed { i, (icon, name) ->
             val on = i == selected
-            val scale by animateFloatAsState(if (on) 1.12f else 1f, spring(dampingRatio = 0.6f), label = "scale")
+            val scale by animateFloatAsState(if (on) 1.2f else 1f, spring(dampingRatio = 0.6f), label = "scale")
             Box(
                 Modifier.size(buttonSize).scale(scale).clip(CircleShape).background(if (on) Accent else Cloud).clickable { onSelect(i) },
                 contentAlignment = Alignment.Center,
