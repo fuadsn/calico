@@ -90,7 +90,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(0), navigationBarStyle = SystemBarStyle.dark(0))
+        enableEdgeToEdge(statusBarStyle = SystemBarStyle.light(0, 0), navigationBarStyle = SystemBarStyle.light(0, 0))
         requestedTab.intValue=intent.getIntExtra("tab",0)
         setContent { CalicoTheme { App(resumed.intValue,requestedTab.intValue,navigationRequest.intValue) } }
     }
@@ -240,15 +240,17 @@ private fun Home(progress: Progress, resumed: Int, onVoice: () -> Unit) {
 
         // splits: two per row, calico patches in turn
         SectionTitle("Exercise splits")
-        val patches = listOf(Accent, Charcoal, Card, Snow, Charcoal, Accent)   // ginger and dark on opposite corners
+        val patches = listOf(Card, Snow, Accent, Card, Card, Snow)   // white, dark and coral like the reference
         SPLITS.chunked(2).forEachIndexed { r, pair ->
             Row(Modifier.padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 pair.forEachIndexed { c, split -> SplitCard(split, patches[(r * 2 + c) % patches.size], Modifier.weight(1f)) { startRoutine(ctx, split.steps) } }
             }
         }
 
-        // today's plan
-        SectionTitle("Today's plan")
+        // today's plan: dark lower block with dark-grey and coral rows
+        Spacer(Modifier.height(24.dp))
+        Column(Modifier.fillMaxWidth().background(Snow, RoundedCornerShape(28.dp)).padding(16.dp)) {
+        Text("Today's plan", style = MaterialTheme.typography.headlineSmall, color = Card, modifier = Modifier.padding(start = 4.dp, bottom = 12.dp))
         plan.forEachIndexed { i, step ->
             val tile = tileColor(i)
             Row(
@@ -271,6 +273,7 @@ private fun Home(progress: Progress, resumed: Int, onVoice: () -> Unit) {
                     )
                 }
             }
+        }
         }
         Spacer(Modifier.height(16.dp))
         com.hackathon.calico.voice.HandsFreeControl()

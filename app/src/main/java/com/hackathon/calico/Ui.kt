@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -68,7 +69,7 @@ fun BumpBar(items: List<Pair<ImageVector, String>>, selected: Int, modifier: Mod
                 for (i in 0..40) add(wd - r - (wd - 2 * r) * i / 40f, bot, 0f, 1f)
                 for (i in 1..24) { val a = Math.toRadians(90.0 + 180.0 * i / 24); val nx = cos(a).toFloat(); val ny = sin(a).toFloat(); add(r + r * nx, cy + r * ny, nx, ny) }
                 p.close()
-                drawPath(p, Card)
+                drawPath(p, PillBg)
             }
             .padding(horizontal = BUMP, vertical = BUMP + 8.dp),
         horizontalArrangement = Arrangement.spacedBy(gap),
@@ -88,7 +89,14 @@ fun BumpBar(items: List<Pair<ImageVector, String>>, selected: Int, modifier: Mod
 @Composable
 fun GoalBar(fraction: Float, text: String, modifier: Modifier = Modifier) {
     val f by animateFloatAsState(fraction.coerceIn(0f, 1f), spring(stiffness = Spring.StiffnessLow), label = "bar")
-    Box(modifier.fillMaxWidth().height(36.dp).border(2.dp, OnAccent.copy(0.35f), Pill).padding(5.dp)) {
+    Box(
+        modifier.fillMaxWidth().height(36.dp).clip(Pill).border(2.dp, OnAccent.copy(0.35f), Pill)
+            .drawBehind {   // hatched remainder
+                val step = 7.dp.toPx(); var x = -size.height
+                while (x < size.width) { drawLine(OnAccent.copy(0.25f), Offset(x, size.height), Offset(x + size.height, 0f), 1.5.dp.toPx()); x += step }
+            }
+            .padding(5.dp),
+    ) {
         Box(Modifier.fillMaxWidth(maxOf(0.3f, f)).fillMaxHeight()) {
             Box(Modifier.fillMaxWidth().fillMaxHeight().background(OnAccent, Pill), contentAlignment = Alignment.Center) {
                 Text(text, style = MaterialTheme.typography.labelSmall, color = Accent)
