@@ -34,7 +34,7 @@ import kotlin.math.abs
  * MODE 2: live pose tracking + rep counting + voice cues.
  * Intent extras:
  *   exercise = any [Exercise] name (default PUSHUP)
- *   video    = absolute path of an mp4 on the device; runs the file instead of the camera
+ *   video    = absolute path of an mp4, or a filename inside filesDir (see bench/run.sh); runs the file instead of the camera
  *              and logs "CALICO_BENCH exercise=.. reps=.. cues=.. frames=.." when done.
  */
 class WorkoutActivity : ComponentActivity() {
@@ -124,7 +124,8 @@ class WorkoutActivity : ComponentActivity() {
 
     private fun runVideo(path: String) = thread {
         preview.visibility = android.view.View.GONE
-        val r = MediaMetadataRetriever().apply { setDataSource(path) }
+        val file = if (path.startsWith("/")) java.io.File(path) else java.io.File(filesDir, path)
+        val r = MediaMetadataRetriever().apply { setDataSource(file.absolutePath) }
         val durationMs = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)!!.toLong()
         val frames = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_FRAME_COUNT)!!.toInt()
         val fps = frames * 1000f / durationMs
@@ -154,6 +155,7 @@ class WorkoutActivity : ComponentActivity() {
 
         // pick the side whose joints are more visible
         val e = counter.exercise
+        if (counter.done) return
         fun vis(idx: IntArray) = idx.minOf { pose[it].visibility().orElse(0f) }
         val j = if (vis(e.left) >= vis(e.right)) e.left else e.right
         if (vis(j) < 0.5f) return
@@ -177,8 +179,9 @@ class WorkoutActivity : ComponentActivity() {
     }
 
     private fun onRep(n: Int) {
-        runOnUiThread { repsText.text = n.toString() }
-        say(n.toString())
+        val hold = counter.exercise.holdSec > 0
+        runOnUiThread { repsText.text = if (hold) "${n}s" else n.toString() }
+        say(if (counter.done) "Done" else n.toString())
     }
 
     private fun say(text: String) = tts.speak(text, TextToSpeech.QUEUE_FLUSH, null, text)

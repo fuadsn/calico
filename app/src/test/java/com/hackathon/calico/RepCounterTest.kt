@@ -36,8 +36,31 @@ class RepCounterTest {
         assertEquals(0, reps); assertEquals(0, cues)
     }
 
-    @Test fun everyExerciseHasSaneThresholds() = Exercise.values().forEach {
+    @Test fun everyExerciseHasSaneThresholds() = Exercise.values().filter { it.holdSec == 0 }.forEach {
         assert(it.down < it.up - 30f) { "${it.name}: down must be well below up" }
         assertEquals(3, it.left.size); assertEquals(3, it.right.size)
+    }
+}
+
+class HoldTest {
+    @Test fun accumulatesOnlyWhileHeldAndAnnouncesEvery5s() {
+        val announced = mutableListOf<Int>(); val cues = mutableListOf<String>()
+        val c = RepCounter(Exercise.PLANK, { announced += it }, { cues += it })
+        var t = 0L
+        repeat(60) { c.feed(170f, t); t += 100 }   // 6 s held
+        repeat(10) { c.feed(120f, t); t += 100 }   // 1 s broken -> one cue, no time added
+        repeat(50) { c.feed(170f, t); t += 100 }   // 5 s more
+        assert(c.count in 10..11) { "held ${c.count}s" }   // ~10.9 s minus smoothing lag
+        assertEquals(listOf(5, 10), announced)
+        assertEquals(listOf("Hips up"), cues)
+        assertEquals(false, c.done)
+    }
+
+    @Test fun completesAtHoldSec() {
+        var last = 0
+        val c = RepCounter(Exercise.OVERHEAD_STRETCH, { last = it }, {})
+        var t = 0L
+        repeat(250) { c.feed(40f, t); t += 100 }
+        assertEquals(true, c.done); assertEquals(20, last)
     }
 }
