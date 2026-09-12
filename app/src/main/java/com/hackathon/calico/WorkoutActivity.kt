@@ -110,7 +110,10 @@ class WorkoutActivity : ComponentActivity() {
     private var recording: Recording? = null
     private lateinit var landmarker: PoseLandmarker
     private lateinit var tts: TextToSpeech
-    private lateinit var counter: RepCounter
+    private lateinit var counter: RepCounter          // single side, or the left side in SUM mode
+    private var counterR: RepCounter? = null          // SUM mode: the right side; totals reported via total()
+    private fun total() = counter.count + (counterR?.count ?: 0)
+    private fun totalCues() = counter.cues + (counterR?.cues ?: 0)
     private val analyzerExecutor = Executors.newSingleThreadExecutor()
     private val ui = Handler(Looper.getMainLooper())
 
@@ -128,6 +131,7 @@ class WorkoutActivity : ComponentActivity() {
     private var recordingNow by mutableStateOf(false)
     private var benchFrame by mutableStateOf<Bitmap?>(null)
     private var benchDone by mutableStateOf<String?>(null)
+    private var benchLog: java.io.PrintWriter? = null   // bench trace + result, read by bench/run.sh via run-as
     private val results = mutableStateListOf<Pair<Step, Int>>()
     private var streakBefore = 0
     private var streakAfter = 0
@@ -163,7 +167,9 @@ class WorkoutActivity : ComponentActivity() {
         stepIndex = i
         count = 0
         val s = steps[i]
-        counter = RepCounter(s.exercise, onRep = ::onRep, onCue = ::onCue, holdSec = if (s.exercise.holdSec > 0) s.target else 0)
+        val hold = if (s.exercise.holdSec > 0) s.target else 0
+        counter = RepCounter(s.exercise, onRep = { onRep(total()) }, onCue = ::onCue, holdSec = hold)
+        counterR = if (s.exercise.sides == Sides.SUM) RepCounter(s.exercise, onRep = { onRep(total()) }, onCue = ::onCue, holdSec = hold) else null
         overlay.highlight = s.exercise.left + s.exercise.right
         phase = Phase.RUNNING
     }
@@ -227,7 +233,7 @@ class WorkoutActivity : ComponentActivity() {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
                     Text(
-                        if (steps.size > 1) "STEP ${stepIndex + 1} OF ${steps.size}" else "FREE SET",
+                        (if (step.warmup) "WARM-UP · " else "") + if (steps.size > 1) "STEP ${stepIndex + 1} OF ${steps.size}" else "FREE SET",
                         style = MaterialTheme.typography.labelSmall, color = Lime,
                     )
                     Text(step.exercise.label, style = MaterialTheme.typography.headlineLarge, color = Snow)
@@ -383,6 +389,7 @@ class WorkoutActivity : ComponentActivity() {
 
     private fun runVideo(path: String) = thread {
         val file = if (path.startsWith("/")) File(path) else File(filesDir, path)
+        benchLog = File(filesDir, "bench.log").printWriter()
         val r = MediaMetadataRetriever().apply { setDataSource(file.absolutePath) }
         val durationMs = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)?.toLong() ?: 0L
         val frames = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_FRAME_COUNT)?.toInt() ?: (durationMs * 30 / 1000).toInt()
@@ -400,8 +407,10 @@ class WorkoutActivity : ComponentActivity() {
             i += step
         }
         r.release()
-        Log.i("CALICO_BENCH", "exercise=${counter.exercise} reps=${counter.count} cues=${counter.cues} frames=$analysed")
-        benchDone = "DONE  reps=${counter.count} cues=${counter.cues}"
+        val line = "exercise=${counter.exercise} reps=${total()} cues=${totalCues()} frames=$analysed"
+        Log.i("CALICO_BENCH", line)
+        benchLog?.println("RESULT $line"); benchLog?.close(); benchLog = null
+        benchDone = "DONE  reps=${total()} cues=${totalCues()}"
     }
 
     // ---------- dev: record labelled bench clips ----------
@@ -415,7 +424,7 @@ class WorkoutActivity : ComponentActivity() {
             .start(mainExecutor) { ev ->
                 if (ev is VideoRecordEvent.Finalize) {
                     recordingNow = false
-                    if (ev.hasError()) file.delete() else labelClip(file, counter.count)
+                    if (ev.hasError()) file.delete() else labelClip(file, total())
                 }
             }
         recordingNow = true
@@ -445,17 +454,25 @@ class WorkoutActivity : ComponentActivity() {
         overlay.update(pose ?: emptyList(), w, h)
         if (pose == null || phase != Phase.RUNNING || counter.done || !orientationOk(pose)) return
 
-        // pick the side whose joints are more visible
         val e = counter.exercise
         fun vis(idx: IntArray) = idx.minOf { pose[it].visibility().orElse(0f) }
-        val j = if (vis(e.left) >= vis(e.right)) e.left else e.right
-        if (vis(j) < 0.5f) return
-        val a = angle(
-            pose[j[0]].x(), pose[j[0]].y(),
-            pose[j[1]].x(), pose[j[1]].y(),
-            pose[j[2]].x(), pose[j[2]].y(),
-        )
-        ui.post { counter.feed(a, result.timestampMs()) }   // state writes on the main thread
+        fun ang(j: IntArray) = angle(pose[j[0]].x(), pose[j[0]].y(), pose[j[1]].x(), pose[j[1]].y(), pose[j[2]].x(), pose[j[2]].y())
+        val lOk = vis(e.left) >= 0.5f; val rOk = vis(e.right) >= 0.5f
+        val t = result.timestampMs()
+        if (e.sides == Sides.SUM) {   // each leg has its own counter
+            val l = if (lOk) ang(e.left) else null; val r = if (rOk) ang(e.right) else null
+            benchLog?.println("t=$t l=${l?.toInt() ?: "-"} r=${r?.toInt() ?: "-"}")
+            ui.post { l?.let { counter.feed(it, t) }; r?.let { counterR?.feed(it, t) } }
+            return
+        }
+        val a = when {
+            e.sides == Sides.EITHER && lOk && rOk -> maxOf(ang(e.left), ang(e.right))
+            lOk && (!rOk || vis(e.left) >= vis(e.right)) -> ang(e.left)   // the more visible side
+            rOk -> ang(e.right)
+            else -> return
+        }
+        benchLog?.println("t=$t a=${"%.0f".format(a)} l=${if (lOk) "%.0f".format(ang(e.left)) else "-"} r=${if (rOk) "%.0f".format(ang(e.right)) else "-"} vis=${"%.2f/%.2f".format(vis(e.left), vis(e.right))}")
+        ui.post { counter.feed(a, t) }   // state writes on the main thread
     }
 
     /** Torso vector mid-hip -> mid-shoulder; upright if it's more vertical than horizontal. */

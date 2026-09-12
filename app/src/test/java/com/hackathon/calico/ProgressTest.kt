@@ -17,7 +17,7 @@ class ProgressTest {
         assertEquals(0, streakOf(setOf(d.minusDays(2), d.minusDays(3)), d))
 
     @Test fun stepsRoundTrip() {
-        val s = listOf(Step(Exercise.PUSHUP, 10), Step(Exercise.PLANK, 30))
+        val s = listOf(Step(Exercise.JUMPING_JACK, 20, warmup = true), Step(Exercise.PUSHUP, 10), Step(Exercise.PLANK, 30))
         assertEquals(s, decodeSteps(s.encode()))
     }
 }

@@ -4,23 +4,41 @@ import android.content.Context
 import java.time.LocalDate
 
 /** One exercise with a rep target (or seconds for holds). */
-data class Step(val exercise: Exercise, val target: Int)
+data class Step(val exercise: Exercise, val target: Int, val warmup: Boolean = false)
 
-/** Serialise as "PUSHUP:10,SQUAT:15,PLANK:30" so other modes (room scan) can hand a plan over via a String. */
-fun List<Step>.encode() = joinToString(",") { "${it.exercise.name}:${it.target}" }
+/** Serialise as "JUMPING_JACK:20w,PUSHUP:10,PLANK:30" (w = warm-up) so other modes can hand a plan over via a String. */
+fun List<Step>.encode() = joinToString(",") { "${it.exercise.name}:${it.target}${if (it.warmup) "w" else ""}" }
 fun decodeSteps(s: String) = s.split(",").filter { it.isNotBlank() }.map {
-    val (e, n) = it.split(":"); Step(Exercise.valueOf(e.trim()), n.trim().toInt())
+    val (e, n) = it.split(":"); Step(Exercise.valueOf(e.trim()), n.trim().trimEnd('w').toInt(), warmup = n.trim().endsWith("w"))
 }
+
+private fun warm(e: Exercise, n: Int) = Step(e, n, warmup = true)
 
 data class Level(val title: String, val blurb: String, val steps: List<Step>)
 
 val LEVELS = listOf(
-    Level("Floor Basics", "Just you and the floor.", listOf(Step(Exercise.PUSHUP, 5), Step(Exercise.SQUAT, 10), Step(Exercise.PLANK, 20))),
-    Level("Living Room", "Full body, no gear.", listOf(Step(Exercise.PUSHUP, 10), Step(Exercise.SQUAT, 15), Step(Exercise.LUNGE, 10), Step(Exercise.PLANK, 30))),
-    Level("Chair Master", "Any chair is a bench.", listOf(Step(Exercise.DIP, 8), Step(Exercise.PIKE_PUSHUP, 6), Step(Exercise.SITUP, 15))),
-    Level("Cardio Burst", "Get the heart going.", listOf(Step(Exercise.JUMPING_JACK, 20), Step(Exercise.HIGH_KNEES, 20), Step(Exercise.MOUNTAIN_CLIMBER, 20))),
-    Level("Doorframe Puller", "Pull-up bar unlocked.", listOf(Step(Exercise.PULLUP, 3), Step(Exercise.LEG_RAISE, 10), Step(Exercise.PLANK, 45))),
-    Level("Absolute Beast", "The whole room is a gym.", listOf(Step(Exercise.PUSHUP, 25), Step(Exercise.SQUAT, 30), Step(Exercise.PULLUP, 8), Step(Exercise.PLANK, 60))),
+    Level("Floor Basics", "Hands on a chair, then the floor.", listOf(
+        warm(Exercise.JUMPING_JACK, 15), warm(Exercise.HIGH_KNEES, 20),
+        Step(Exercise.INCLINE_PUSHUP, 8), Step(Exercise.SQUAT, 10), Step(Exercise.SITUP, 10), Step(Exercise.PLANK, 20),
+    )),
+    Level("Living Room", "Full pushups. No gear.", listOf(
+        warm(Exercise.JUMPING_JACK, 20), warm(Exercise.HIGH_KNEES, 30),
+        Step(Exercise.PUSHUP, 10), Step(Exercise.SQUAT, 15), Step(Exercise.SITUP, 15), Step(Exercise.PLANK, 30),
+    )),
+    Level("Pike Master", "Shoulders take the load.", listOf(
+        warm(Exercise.JUMPING_JACK, 25), warm(Exercise.HIGH_KNEES, 30),
+        Step(Exercise.PIKE_PUSHUP, 6), Step(Exercise.SQUAT, 20), Step(Exercise.SITUP, 20), Step(Exercise.PLANK, 45),
+    )),
+    Level("Chair Master", "Any chair is a bench.", listOf(
+        warm(Exercise.JUMPING_JACK, 25), Step(Exercise.DIP, 8), Step(Exercise.PIKE_PUSHUP, 8), Step(Exercise.LUNGE, 12), Step(Exercise.LEG_RAISE, 10),
+    )),
+    Level("Doorframe Puller", "Pull-up bar unlocked.", listOf(
+        warm(Exercise.HIGH_KNEES, 30), Step(Exercise.PULLUP, 3), Step(Exercise.PUSHUP, 15), Step(Exercise.MOUNTAIN_CLIMBER, 20), Step(Exercise.PLANK, 45),
+    )),
+    Level("Absolute Beast", "The whole room is a gym.", listOf(
+        warm(Exercise.JUMPING_JACK, 30), warm(Exercise.HIGH_KNEES, 40),
+        Step(Exercise.PIKE_PUSHUP, 12), Step(Exercise.PULLUP, 8), Step(Exercise.SQUAT, 30), Step(Exercise.SITUP, 30), Step(Exercise.PLANK, 60),
+    )),
 )
 
 /** Consecutive days ending today or yesterday. Pure so it's testable. */

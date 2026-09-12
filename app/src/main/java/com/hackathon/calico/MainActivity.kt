@@ -148,7 +148,14 @@ private fun Home(progress: Progress, resumed: Int) {
         Spacer(Modifier.height(16.dp))
         Surface(shape = RoundedCornerShape(20.dp), color = Surface1, modifier = Modifier.fillMaxWidth()) {
             Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                plan.forEach { StepRow(it) }
+                val (warm, main) = plan.partition { it.warmup }
+                if (warm.isNotEmpty()) {
+                    Text("WARM-UP", style = MaterialTheme.typography.labelSmall, color = Fog)
+                    warm.forEach { StepRow(it) }
+                    Spacer(Modifier.height(4.dp))
+                    Text("WORKOUT", style = MaterialTheme.typography.labelSmall, color = Fog)
+                }
+                main.forEach { StepRow(it) }
             }
         }
 
@@ -177,7 +184,7 @@ private fun Home(progress: Progress, resumed: Int) {
 @Composable
 private fun StepRow(step: Step) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(10.dp).background(Lime, CircleShape))
+        Box(Modifier.size(10.dp).background(if (step.warmup) Ember else Lime, CircleShape))
         Spacer(Modifier.width(14.dp))
         Text(step.exercise.label, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
         Text(

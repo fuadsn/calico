@@ -8,10 +8,14 @@ private val ELBOW_L = intArrayOf(11, 13, 15); private val ELBOW_R = intArrayOf(1
 private val KNEE_L = intArrayOf(23, 25, 27);  private val KNEE_R = intArrayOf(24, 26, 28)   // hip-knee-ankle
 private val HIP_L = intArrayOf(11, 23, 25);   private val HIP_R = intArrayOf(12, 24, 26)    // shoulder-hip-knee
 private val HIPLEG_L = intArrayOf(11, 23, 27); private val HIPLEG_R = intArrayOf(12, 24, 28) // shoulder-hip-ankle
-private val ARM_L = intArrayOf(23, 11, 15);   private val ARM_R = intArrayOf(24, 12, 16)    // hip-shoulder-wrist
+private val ARM_L = intArrayOf(23, 11, 13);   private val ARM_R = intArrayOf(24, 12, 14)    // hip-shoulder-elbow (wrists leave the frame overhead)
 
 /** Torso direction required for a frame to count. Blocks e.g. arm-folding from counting as pushups. */
 enum class Orientation { UPRIGHT, HORIZONTAL, ANY }
+
+/** Which limbs drive the count. ONE = the more visible side. SUM = each side counted separately and added
+ *  (alternating legs). EITHER = max of both, so one raised arm counts even if the other left the frame. */
+enum class Sides { ONE, SUM, EITHER }
 
 /**
  * Rep exercise (holdSec == 0): one rep = angle drops below `down`, then rises above `up`.
@@ -22,8 +26,10 @@ enum class Exercise(
     val down: Float, val up: Float,
     val cue: String, val orientation: Orientation,
     val holdSec: Int = 0,
+    val sides: Sides = Sides.ONE,
 ) {
     // ---- reps ----
+    INCLINE_PUSHUP(ELBOW_L, ELBOW_R, 90f, 160f, "Go lower", Orientation.ANY),   // hands on a chair/counter
     PUSHUP(ELBOW_L, ELBOW_R, 90f, 160f, "Go lower", Orientation.HORIZONTAL),
     PIKE_PUSHUP(ELBOW_L, ELBOW_R, 90f, 160f, "Go lower", Orientation.ANY),
     DIP(ELBOW_L, ELBOW_R, 90f, 160f, "Go lower", Orientation.UPRIGHT),
@@ -32,9 +38,9 @@ enum class Exercise(
     LUNGE(KNEE_L, KNEE_R, 100f, 160f, "Go deeper", Orientation.UPRIGHT),
     SITUP(HIP_L, HIP_R, 80f, 140f, "All the way up", Orientation.ANY),
     LEG_RAISE(HIPLEG_L, HIPLEG_R, 100f, 160f, "Legs higher", Orientation.HORIZONTAL),
-    MOUNTAIN_CLIMBER(KNEE_L, KNEE_R, 90f, 150f, "Knee to chest", Orientation.HORIZONTAL),
-    HIGH_KNEES(KNEE_L, KNEE_R, 100f, 160f, "Knees higher", Orientation.UPRIGHT),
-    JUMPING_JACK(ARM_L, ARM_R, 40f, 130f, "Arms all the way up", Orientation.UPRIGHT),
+    MOUNTAIN_CLIMBER(KNEE_L, KNEE_R, 90f, 150f, "Knee to chest", Orientation.HORIZONTAL, sides = Sides.SUM),
+    HIGH_KNEES(KNEE_L, KNEE_R, 120f, 155f, "Knees higher", Orientation.UPRIGHT, sides = Sides.SUM),
+    JUMPING_JACK(ARM_L, ARM_R, 40f, 110f, "Arms all the way up", Orientation.UPRIGHT, sides = Sides.EITHER),
     // ---- warm-up reps: shoulder angle sweeps low -> high -> low ----
     ARM_RAISE(ARM_L, ARM_R, 40f, 140f, "Reach higher", Orientation.UPRIGHT),
     ARM_CIRCLE(ARM_L, ARM_R, 40f, 140f, "Bigger circles", Orientation.UPRIGHT),
