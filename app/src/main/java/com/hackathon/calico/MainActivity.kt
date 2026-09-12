@@ -160,7 +160,7 @@ private fun Home(progress: Progress, resumed: Int) {
                 Text("HI THERE 👋", style = MaterialTheme.typography.titleLarge, color = Ink)
                 Text("⚡ Level ${completed + 1} · ${level.title}", style = MaterialTheme.typography.labelMedium, color = Muted)
             }
-            Box(Modifier.background(Charcoal, Pill).padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Box(Modifier.background(AccentSoft, Pill).padding(horizontal = 14.dp, vertical = 10.dp)) {
                 Text("🔥 $streak", style = MaterialTheme.typography.titleMedium, color = Ink)
             }
         }
@@ -245,7 +245,7 @@ private fun Ring(fraction: Float, text: String) {
     Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val s = 7.dp.toPx(); val inset = s / 2; val arc = Size(size.width - s, size.height - s)
-            drawArc(Line, 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(s))
+            drawArc(AccentSoft, 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(s))
             drawArc(Accent, -90f, 360f * fraction, false, Offset(inset, inset), arc, style = Stroke(s, cap = StrokeCap.Round))
         }
         Text(text, style = MaterialTheme.typography.labelMedium, color = Ink)
@@ -322,7 +322,7 @@ private fun Overview(progress: Progress, resumed: Int) {
                     Gauge(todayStats.kcal, KCAL_GOAL)
                     Spacer(Modifier.height(12.dp))
                     Row(
-                        Modifier.background(Charcoal, Pill).padding(horizontal = 16.dp, vertical = 10.dp),
+                        Modifier.background(AccentSoft, Pill).padding(horizontal = 16.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text("👍", fontSize = 16.sp)
@@ -342,14 +342,14 @@ private fun Overview(progress: Progress, resumed: Int) {
                 val mins = week.reversed().map { it.secs / 60f }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     StatTile("🏃", "Reps", "${todayStats.reps}", "reps", Charcoal, Modifier.weight(1f)) { Sparkline(reps, Accent) }
-                    StatTile("🔥", "Calories", "${todayStats.kcal}", "kcal", Slate, Modifier.weight(1f)) { Bars(kcal, Snow) }
-                    StatTile("⏱", "Time", "${todayStats.secs / 60}", "min", AccentSoft, Modifier.weight(1f)) { Bars(mins, Snow) }
+                    StatTile("🔥", "Calories", "${todayStats.kcal}", "kcal", AccentSoft, Modifier.weight(1f)) { Bars(kcal, Snow) }
+                    StatTile("⏱", "Time", "${todayStats.secs / 60}", "min", Charcoal, Modifier.weight(1f)) { Bars(mins, Snow) }
                 }
                 Text("last 7 days", style = MaterialTheme.typography.labelSmall, color = Muted, modifier = Modifier.padding(top = 6.dp, start = 4.dp))
 
                 // goal: one wide card
                 Spacer(Modifier.height(12.dp))
-                Row(Modifier.fillMaxWidth().background(Charcoal, CardShape).padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().background(AccentSoft, CardShape).padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
                         Text("Goal", style = MaterialTheme.typography.labelMedium, color = Muted)
                         Text(LEVELS[current].title, style = MaterialTheme.typography.headlineSmall, color = Ink)

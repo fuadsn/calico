@@ -291,7 +291,7 @@ class WorkoutActivity : ComponentActivity() {
                     Text(
                         if (hold) "${count}s" else "$count",
                         style = MaterialTheme.typography.displayLarge, color = Snow,
-                        modifier = Modifier.background(Slate, TileShape).padding(horizontal = 24.dp, vertical = 4.dp),
+                        modifier = Modifier.background(AccentSoft, TileShape).padding(horizontal = 24.dp, vertical = 4.dp),
                     )
                     Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
                         Text("Step", style = MaterialTheme.typography.labelMedium, color = Muted)

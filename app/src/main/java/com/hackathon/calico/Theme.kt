@@ -65,7 +65,7 @@ fun CalicoTheme(content: @Composable () -> Unit) =
 val Exercise.label get() = name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }
 
 /** Tile colour per step: greys with a sage one every fourth. */
-fun tileColor(i: Int) = listOf(Charcoal, Slate, Card, AccentSoft)[i % 4]
+fun tileColor(i: Int) = listOf(Charcoal, AccentSoft, Slate, AccentSoft)[i % 4]
 
 /** Text colour that reads on a given tile. */
 fun onTile(c: Color) = if (c.luminance() > 0.4f) Ink else Bg
