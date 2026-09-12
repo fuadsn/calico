@@ -216,7 +216,7 @@ class WorkoutActivity : ComponentActivity() {
 
     @Composable
     private fun Screen() {
-        Box(Modifier.fillMaxSize().background(Navy)) {
+        Box(Modifier.fillMaxSize().background(Bg)) {
             if (phase == Phase.DONE && !bench) { Complete(); return@Box }
             if (bench) benchFrame?.let { Image(it.asImageBitmap(), null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop) }
             else AndroidView({ previewView }, Modifier.fillMaxSize())
@@ -250,15 +250,15 @@ class WorkoutActivity : ComponentActivity() {
                     Box(
                         Modifier.size(52.dp).background(Snow, CircleShape).clickable { phase = if (phase == Phase.PAUSED) Phase.RUNNING else Phase.PAUSED },
                         contentAlignment = Alignment.Center,
-                    ) { Icon(if (phase == Phase.PAUSED) Icons.Outlined.PlayArrow else Icons.Outlined.Pause, "pause", tint = Navy) }
+                    ) { Icon(if (phase == Phase.PAUSED) Icons.Outlined.PlayArrow else Icons.Outlined.Pause, "pause", tint = Deep) }
                     Spacer(Modifier.height(14.dp))
                     Column(Modifier.background(Snow, Pill).padding(horizontal = 14.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(if (open) "$count" else "$count / $target", style = MaterialTheme.typography.titleMedium, color = Ink)
-                        Text(if (hold) "seconds" else "reps", style = MaterialTheme.typography.labelSmall, color = Muted)
+                        Text(if (open) "$count" else "$count / $target", style = MaterialTheme.typography.titleMedium, color = Deep)
+                        Text(if (hold) "seconds" else "reps", style = MaterialTheme.typography.labelSmall, color = Mid)
                         if (steps.size > 1) {
                             Spacer(Modifier.height(8.dp))
                             steps.indices.forEach { i ->
-                                Box(Modifier.padding(vertical = 2.dp).size(width = 34.dp, height = 8.dp).background(if (i <= stepIndex) Purple else PurpleSoft, Pill))
+                                Box(Modifier.padding(vertical = 2.dp).size(width = 34.dp, height = 8.dp).background(if (i <= stepIndex) Violet else Lilac, Pill))
                             }
                         }
                     }
@@ -270,9 +270,9 @@ class WorkoutActivity : ComponentActivity() {
             var visible by remember { mutableStateOf(false) }
             LaunchedEffect(c?.second) { if (c != null) { visible = true; delay(1600); visible = false } }
             AnimatedVisibility(visible, Modifier.align(Alignment.CenterHorizontally).padding(bottom = 16.dp), enter = fadeIn(), exit = fadeOut()) {
-                Text(c?.first ?: "", Modifier.background(Lime, Pill).padding(horizontal = 22.dp, vertical = 12.dp), style = MaterialTheme.typography.titleLarge, color = Navy)
+                Text(c?.first ?: "", Modifier.background(Snow, Pill).padding(horizontal = 22.dp, vertical = 12.dp), style = MaterialTheme.typography.titleLarge, color = Deep)
             }
-            benchDone?.let { Text(it, Modifier.align(Alignment.CenterHorizontally).padding(8.dp), style = MaterialTheme.typography.titleMedium, color = Lime) }
+            benchDone?.let { Text(it, Modifier.align(Alignment.CenterHorizontally).padding(8.dp), style = MaterialTheme.typography.titleMedium, color = Violet) }
             // bottom sheet
             Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)).padding(24.dp).navigationBarsPadding()) {
                 Box(Modifier.align(Alignment.CenterHorizontally).size(width = 40.dp, height = 4.dp).background(Line, Pill))
@@ -284,8 +284,8 @@ class WorkoutActivity : ComponentActivity() {
                     }
                     Text(
                         if (hold) "${count}s" else "$count",
-                        style = MaterialTheme.typography.displayLarge, color = Navy,
-                        modifier = Modifier.background(Navy.copy(0.06f), TileShape).padding(horizontal = 24.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.displayLarge, color = Snow,
+                        modifier = Modifier.background(Violet.copy(0.25f), TileShape).padding(horizontal = 24.dp, vertical = 4.dp),
                     )
                     Column(Modifier.weight(1f), horizontalAlignment = Alignment.End) {
                         Text("Step", style = MaterialTheme.typography.labelMedium, color = Muted)
@@ -298,13 +298,13 @@ class WorkoutActivity : ComponentActivity() {
                         Text(
                             if (recordingNow) "■ STOP REC" else "● REC",
                             Modifier.clickable(onClick = ::toggleRecord).padding(8.dp),
-                            style = MaterialTheme.typography.labelMedium, color = if (recordingNow) Purple else Muted,
+                            style = MaterialTheme.typography.labelMedium, color = if (recordingNow) Violet else Muted,
                         )
                         Spacer(Modifier.weight(1f))
                         if (!open) Text(
                             if (stepIndex == steps.lastIndex) "FINISH" else "SKIP",
-                            Modifier.background(Navy, Pill).clickable(onClick = ::advance).padding(horizontal = 26.dp, vertical = 14.dp),
-                            style = MaterialTheme.typography.labelLarge, color = Lime,
+                            Modifier.background(Snow, Pill).clickable(onClick = ::advance).padding(horizontal = 26.dp, vertical = 14.dp),
+                            style = MaterialTheme.typography.labelLarge, color = Deep,
                         )
                     }
                 }
@@ -315,16 +315,16 @@ class WorkoutActivity : ComponentActivity() {
     @Composable
     private fun Rest() {
         val next = steps[stepIndex + 1]
-        Box(Modifier.fillMaxSize().background(Navy.copy(alpha = 0.86f)), contentAlignment = Alignment.Center) {
+        Box(Modifier.fillMaxSize().background(Bg.copy(alpha = 0.9f)), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("REST", style = MaterialTheme.typography.labelMedium, color = Snow.copy(0.7f))
-                Text("$restLeft", style = MaterialTheme.typography.displayLarge, color = Lime)
+                Text("$restLeft", style = MaterialTheme.typography.displayLarge, color = Violet)
                 Spacer(Modifier.height(24.dp))
                 Text("NEXT UP", style = MaterialTheme.typography.labelMedium, color = Snow.copy(0.7f))
                 Text(next.exercise.label, style = MaterialTheme.typography.headlineLarge, color = Snow)
                 Text(
                     if (next.exercise.holdSec > 0) "hold ${next.target}s" else "×${next.target}",
-                    style = MaterialTheme.typography.headlineSmall, color = Lime,
+                    style = MaterialTheme.typography.headlineSmall, color = Violet,
                 )
             }
         }
@@ -351,7 +351,7 @@ class WorkoutActivity : ComponentActivity() {
                     val s = 34.dp.toPx(); val d = size.width - s
                     val tl = Offset(s / 2, s / 2); val sz = Size(d, d)
                     drawArc(Line, 180f, 180f, false, tl, sz, style = Stroke(s, cap = StrokeCap.Round))
-                    drawArc(Purple, 180f, 180f * gauge, false, tl, sz, style = Stroke(s, cap = StrokeCap.Round))
+                    drawArc(Violet, 180f, 180f * gauge, false, tl, sz, style = Stroke(s, cap = StrokeCap.Round))
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Row(verticalAlignment = Alignment.Bottom) {
@@ -362,7 +362,7 @@ class WorkoutActivity : ComponentActivity() {
                 }
             }
             Spacer(Modifier.height(20.dp))
-            Row(Modifier.fillMaxWidth().background(Lime, Pill).padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.fillMaxWidth().background(Violet, Pill).padding(horizontal = 20.dp, vertical = 16.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("🔥", fontSize = 22.sp)
                 Spacer(Modifier.width(12.dp))
                 Text(
@@ -381,7 +381,7 @@ class WorkoutActivity : ComponentActivity() {
                         val ok = got >= s.target
                         Column(Modifier.weight(1f).background(Card, TileShape).padding(16.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                Box(Modifier.size(8.dp).background(if (ok) Purple else Pink, CircleShape))
+                                Box(Modifier.size(8.dp).background(if (ok) Violet else Muted, CircleShape))
                                 Spacer(Modifier.width(8.dp))
                                 Text(s.exercise.label, style = MaterialTheme.typography.labelMedium, color = Muted)
                             }
@@ -399,8 +399,8 @@ class WorkoutActivity : ComponentActivity() {
             Spacer(Modifier.height(12.dp))
             Text(
                 "BACK HOME",
-                Modifier.fillMaxWidth().background(Navy, Pill).clickable(onClick = ::finish).padding(vertical = 20.dp),
-                style = MaterialTheme.typography.labelLarge, color = Lime, textAlign = TextAlign.Center,
+                Modifier.fillMaxWidth().background(Snow, Pill).clickable(onClick = ::finish).padding(vertical = 20.dp),
+                style = MaterialTheme.typography.labelLarge, color = Deep, textAlign = TextAlign.Center,
             )
             Spacer(Modifier.height(8.dp))
         }
