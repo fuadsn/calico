@@ -112,9 +112,9 @@ private fun BottomBar(selected: Int, modifier: Modifier, onSelect: (Int) -> Unit
         items.forEachIndexed { i, (icon, name) ->
             val on = i == selected
             Box(
-                Modifier.size(56.dp).background(if (on) Violet else Lilac, CircleShape).clickable { onSelect(i) },
+                Modifier.size(56.dp).background(if (on) Accent else Cloud, CircleShape).clickable { onSelect(i) },
                 contentAlignment = Alignment.Center,
-            ) { Icon(icon, name, tint = if (on) Snow else Deep) }
+            ) { Icon(icon, name, tint = if (on) OnAccent else onTile(Cloud)) }
         }
     }
 }
@@ -141,7 +141,7 @@ private fun Home(progress: Progress, resumed: Int) {
         // header
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(52.dp).background(Deep, CircleShape).combinedClickable(onClick = {}, onLongClick = {
+                Modifier.size(52.dp).background(Charcoal, CircleShape).combinedClickable(onClick = {}, onLongClick = {
                     progress.reset(); resetsKey++   // demo rehearsals start from a zero streak
                     Toast.makeText(ctx, "Progress reset", Toast.LENGTH_SHORT).show()
                 }),
@@ -152,7 +152,7 @@ private fun Home(progress: Progress, resumed: Int) {
                 Text("HI THERE 👋", style = MaterialTheme.typography.titleLarge, color = Ink)
                 Text("⚡ Level ${completed + 1} · ${level.title}", style = MaterialTheme.typography.labelMedium, color = Muted)
             }
-            Box(Modifier.background(Deep, Pill).padding(horizontal = 14.dp, vertical = 10.dp)) {
+            Box(Modifier.background(Charcoal, Pill).padding(horizontal = 14.dp, vertical = 10.dp)) {
                 Text("🔥 $streak", style = MaterialTheme.typography.titleMedium, color = Ink)
             }
         }
@@ -162,13 +162,13 @@ private fun Home(progress: Progress, resumed: Int) {
 
         // Today's challenge
         Spacer(Modifier.height(20.dp))
-        Box(Modifier.fillMaxWidth().background(Violet, CardShape).padding(20.dp)) {
+        Box(Modifier.fillMaxWidth().background(Accent, CardShape).padding(20.dp)) {
             Column {
-                Text("Today's Challenge", style = MaterialTheme.typography.headlineSmall, color = Ink)
+                Text("Today's Challenge", style = MaterialTheme.typography.headlineSmall, color = OnAccent)
                 Spacer(Modifier.height(2.dp))
                 Text(
                     if (doneToday) "Done for today. Go again?" else "${level.title} · ${plan.size} exercises · ${level.blurb}",
-                    style = MaterialTheme.typography.bodyMedium, color = Ink.copy(0.7f),
+                    style = MaterialTheme.typography.bodyMedium, color = OnAccent.copy(0.7f),
                 )
                 Spacer(Modifier.height(16.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -178,10 +178,10 @@ private fun Home(progress: Progress, resumed: Int) {
                             .padding(start = 22.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(if (doneToday) "GO AGAIN" else "START", style = MaterialTheme.typography.labelLarge, color = Deep)
+                        Text(if (doneToday) "GO AGAIN" else "START", style = MaterialTheme.typography.labelLarge, color = Charcoal)
                         Spacer(Modifier.width(12.dp))
-                        Box(Modifier.size(36.dp).background(Violet, CircleShape), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Outlined.NorthEast, null, tint = Snow, modifier = Modifier.size(18.dp))
+                        Box(Modifier.size(36.dp).background(Accent, CircleShape), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Outlined.NorthEast, null, tint = OnAccent, modifier = Modifier.size(18.dp))
                         }
                     }
                     Spacer(Modifier.weight(1f))
@@ -196,8 +196,8 @@ private fun Home(progress: Progress, resumed: Int) {
             listOf("All", "Warm-up", "Workout").forEachIndexed { i, t ->
                 val on = i == filter
                 Text(
-                    t, style = MaterialTheme.typography.labelMedium, color = if (on) Snow else Muted,
-                    modifier = Modifier.background(if (on) Violet else Color.Transparent, Pill).clickable { filter = i }.padding(horizontal = 18.dp, vertical = 10.dp),
+                    t, style = MaterialTheme.typography.labelMedium, color = if (on) OnAccent else Muted,
+                    modifier = Modifier.background(if (on) Accent else Color.Transparent, Pill).clickable { filter = i }.padding(horizontal = 18.dp, vertical = 10.dp),
                 )
             }
         }
@@ -205,20 +205,20 @@ private fun Home(progress: Progress, resumed: Int) {
         // stat tiles
         Spacer(Modifier.height(16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(Modifier.weight(1f).background(Deep, TileShape).padding(18.dp)) {
+            Column(Modifier.weight(1f).background(Charcoal, TileShape).padding(18.dp)) {
                 Row { Text("Streak", style = MaterialTheme.typography.titleMedium, color = Ink, modifier = Modifier.weight(1f)); Text("🔥", fontSize = 22.sp) }
                 Spacer(Modifier.height(18.dp))
                 Text("$streak", style = MaterialTheme.typography.displayMedium, color = Ink)
                 Text(if (streak == 1) "day" else "days", style = MaterialTheme.typography.labelMedium, color = Muted)
             }
-            Column(Modifier.weight(1f).background(Mid, TileShape).padding(18.dp)) {
+            Column(Modifier.weight(1f).background(Slate, TileShape).padding(18.dp)) {
                 Text("My Goals", style = MaterialTheme.typography.titleMedium, color = Ink)
                 Spacer(Modifier.height(6.dp))
                 Text("Keep it up, you can\nreach Absolute Beast.", style = MaterialTheme.typography.labelSmall, color = Ink.copy(0.7f))
                 Spacer(Modifier.height(14.dp))
                 Box(Modifier.fillMaxWidth().background(Snow.copy(0.15f), Pill).padding(4.dp)) {
                     Box(Modifier.fillMaxWidth(maxOf(0.18f, completed.toFloat() / LEVELS.size)).height(26.dp).background(Snow, Pill), contentAlignment = Alignment.Center) {
-                        Text("$completed/${LEVELS.size}", style = MaterialTheme.typography.labelSmall, color = Deep)
+                        Text("$completed/${LEVELS.size}", style = MaterialTheme.typography.labelSmall, color = Charcoal)
                     }
                 }
             }
@@ -230,18 +230,19 @@ private fun Home(progress: Progress, resumed: Int) {
         Spacer(Modifier.height(12.dp))
         val shown = plan.filter { filter == 0 || (filter == 1) == it.warmup }
         shown.forEach { step ->
+            val tile = tileColor(plan.indexOf(step))
             Row(
-                Modifier.fillMaxWidth().padding(bottom = 10.dp).background(tileColor(plan.indexOf(step)), TileShape).padding(18.dp),
+                Modifier.fillMaxWidth().padding(bottom = 10.dp).background(tile, TileShape).padding(18.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text(step.exercise.label, style = MaterialTheme.typography.titleLarge, color = Ink)
-                    Text(if (step.warmup) "Warm-up" else "Workout", style = MaterialTheme.typography.labelSmall, color = Ink.copy(0.6f))
+                    Text(step.exercise.label, style = MaterialTheme.typography.titleLarge, color = onTile(tile))
+                    Text(if (step.warmup) "Warm-up" else "Workout", style = MaterialTheme.typography.labelSmall, color = onTile(tile).copy(0.6f))
                 }
                 Box(Modifier.size(58.dp).background(Snow, CircleShape), contentAlignment = Alignment.Center) {
                     Text(
                         if (step.exercise.holdSec > 0) "${step.target}s" else "×${step.target}",
-                        style = MaterialTheme.typography.titleMedium, color = Deep,
+                        style = MaterialTheme.typography.titleMedium, color = Charcoal,
                     )
                 }
             }
@@ -254,10 +255,10 @@ private fun Ring(fraction: Float, text: String) {
     Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val s = 7.dp.toPx(); val inset = s / 2; val arc = Size(size.width - s, size.height - s)
-            drawArc(Snow.copy(0.25f), 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(s))
-            drawArc(Snow, -90f, 360f * fraction, false, Offset(inset, inset), arc, style = Stroke(s, cap = StrokeCap.Round))
+            drawArc(OnAccent.copy(0.15f), 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(s))
+            drawArc(OnAccent, -90f, 360f * fraction, false, Offset(inset, inset), arc, style = Stroke(s, cap = StrokeCap.Round))
         }
-        Text(text, style = MaterialTheme.typography.labelMedium, color = Ink)
+        Text(text, style = MaterialTheme.typography.labelMedium, color = OnAccent)
     }
 }
 
@@ -278,12 +279,12 @@ private fun WeekStrip(dates: Set<LocalDate>) {
                 )
                 Spacer(Modifier.height(8.dp))
                 Box(
-                    Modifier.size(40.dp).background(if (isToday) Snow else if (done) Violet else Color.Transparent, CircleShape),
+                    Modifier.size(40.dp).background(if (isToday) Snow else if (done) Accent else Color.Transparent, CircleShape),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(
                         "${day.dayOfMonth}", style = MaterialTheme.typography.titleMedium,
-                        color = if (isToday) Deep else if (done) Snow else if (day < today) Ink else Muted,
+                        color = if (isToday) Charcoal else if (done) OnAccent else if (day < today) Ink else Muted,
                     )
                 }
             }
@@ -339,7 +340,7 @@ private fun JourneyRow(i: Int, level: Level, state: NodeState, last: Boolean, on
             val cy = size.height / 2
             val stroke = 6.dp.toPx()
             val dash = PathEffect.dashPathEffect(floatArrayOf(14f, 14f))
-            val col = if (state == NodeState.DONE) Violet else Line
+            val col = if (state == NodeState.DONE) Accent else Line
             if (!last) drawLine(col, Offset(cx, cy), Offset(nx, size.height), stroke, pathEffect = dash)
             if (i > 0) drawLine(col, Offset(cx, 0f), Offset(cx, cy), stroke, pathEffect = dash)
         }
@@ -350,9 +351,9 @@ private fun JourneyRow(i: Int, level: Level, state: NodeState, last: Boolean, on
             Box(
                 Modifier.size(NODE)
                     .scale(if (state == NodeState.CURRENT) pulse else 1f)
-                    .shadow(if (state == NodeState.LOCKED) 0.dp else 10.dp, CircleShape, ambientColor = Violet.copy(0.5f))
+                    .shadow(if (state == NodeState.LOCKED) 0.dp else 10.dp, CircleShape, ambientColor = Accent.copy(0.5f))
                     .background(
-                        when (state) { NodeState.DONE -> Violet; NodeState.CURRENT -> Snow; NodeState.LOCKED -> Card },
+                        when (state) { NodeState.DONE -> Accent; NodeState.CURRENT -> Snow; NodeState.LOCKED -> Card },
                         CircleShape,
                     )
                     .border(if (state == NodeState.LOCKED) 2.dp else 0.dp, Line, CircleShape),
@@ -361,7 +362,7 @@ private fun JourneyRow(i: Int, level: Level, state: NodeState, last: Boolean, on
                 Text(
                     when (state) { NodeState.DONE -> "✓"; NodeState.CURRENT -> "${i + 1}"; NodeState.LOCKED -> "🔒" },
                     style = MaterialTheme.typography.headlineSmall,
-                    color = when (state) { NodeState.DONE -> Snow; NodeState.CURRENT -> Deep; NodeState.LOCKED -> Muted },
+                    color = when (state) { NodeState.DONE -> OnAccent; NodeState.CURRENT -> Charcoal; NodeState.LOCKED -> Muted },
                 )
             }
             Spacer(Modifier.height(6.dp))

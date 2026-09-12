@@ -6,24 +6,25 @@ import androidx.compose.material3.Typography
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// Palette: deep purple #3E0F8D and violet #9564DD, darker and lighter variations of the same hue,
-// white for the strong buttons and highlights.
-val Bg = Color(0xFF120430)          // darkest: screen background
-val Card = Color(0xFF1F0A4D)        // surfaces
-val Deep = Color(0xFF3E0F8D)        // brand deep purple: tiles, chips
-val Mid = Color(0xFF5B2BB5)         // between deep and violet
-val Violet = Color(0xFF9564DD)      // brand violet: accent, selected, progress
-val VioletSoft = Color(0xFFB99CEB)  // tint for secondary progress
-val Lilac = Color(0xFFE9E0FA)       // near-white tint
-val Snow = Color(0xFFFFFFFF)
-val Ink = Color(0xFFF7F3FF)         // primary text on dark
-val Muted = Color(0xFFB3A3D6)       // secondary text on dark
-val Line = Color(0xFF3A2470)        // hairlines, inactive path
+// Palette: #3D3D3D charcoal, #578E7E teal, #F5ECD5 sand, #FFFAEC cream. Dark theme, inverted.
+val Bg = Color(0xFF2E2E2E)          // screen background (deeper charcoal)
+val Card = Color(0xFF3D3D3D)        // surfaces
+val Charcoal = Color(0xFF4A4A4A)    // tiles, chips; also text on Snow pills
+val Slate = Color(0xFF575757)       // secondary tiles
+val Accent = Color(0xFF578E7E)      // teal: accent, selected, progress
+val AccentSoft = Color(0xFFF5ECD5)  // sand: fourth tile
+val OnAccent = Color(0xFFFFFAEC)    // text and icons placed on the accent
+val Cloud = Color(0xFFF5ECD5)       // sand for unselected nav circles
+val Snow = Color(0xFFFFFAEC)        // cream for strong pills and bubbles
+val Ink = Color(0xFFFFFAEC)         // primary text on dark
+val Muted = Color(0xFFC4BBA3)       // secondary text on dark (muted sand)
+val Line = Color(0xFF4F4F4F)        // hairlines, inactive path
 
 // Radii: cards 24, tiles 20, everything tappable is a pill.
 val CardShape = RoundedCornerShape(24.dp)
@@ -31,11 +32,11 @@ val TileShape = RoundedCornerShape(20.dp)
 val Pill = RoundedCornerShape(50)
 
 private val Scheme = darkColorScheme(
-    primary = Violet, onPrimary = Snow,
-    secondary = Snow, onSecondary = Deep,
+    primary = Accent, onPrimary = OnAccent,
+    secondary = Snow, onSecondary = Bg,
     background = Bg, onBackground = Ink,
     surface = Card, onSurface = Ink,
-    surfaceVariant = Deep, onSurfaceVariant = Muted,
+    surfaceVariant = Charcoal, onSurfaceVariant = Muted,
     outline = Line,
 )
 
@@ -61,5 +62,8 @@ fun CalicoTheme(content: @Composable () -> Unit) =
 /** "PIKE_PUSHUP" -> "Pike pushup" */
 val Exercise.label get() = name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }
 
-/** Tile colour per step, cycling through the purple variations. */
-fun tileColor(i: Int) = listOf(Deep, Mid, Card, Violet)[i % 4]
+/** Tile colour per step: greys with a sage one every fourth. */
+fun tileColor(i: Int) = listOf(Charcoal, Slate, Card, AccentSoft)[i % 4]
+
+/** Text colour that reads on a given tile. */
+fun onTile(c: Color) = if (c.luminance() > 0.4f) Card else Ink
