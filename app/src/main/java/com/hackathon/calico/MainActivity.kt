@@ -7,14 +7,10 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -109,10 +105,9 @@ private fun App(resumed: Int) {
     val progress = remember { Progress(ctx) }
     var tab by remember { mutableIntStateOf(0) }
     Box(Modifier.fillMaxSize().background(Bg)) {
-        AnimatedContent(
-            tab, label = "tab",
-            transitionSpec = { (fadeIn(tween(260)) + slideInVertically(tween(260)) { it / 20 }) togetherWith fadeOut(tween(160)) },
-        ) { t -> when (t) { 0 -> Home(progress, resumed); 1 -> Overview(progress, resumed); else -> Exercises() } }
+        Crossfade(tab, label = "tab", animationSpec = tween(220)) { t ->
+            when (t) { 0 -> Home(progress, resumed); 1 -> Overview(progress, resumed); else -> Exercises() }
+        }
         BumpBar(TABS, tab, Modifier.align(Alignment.BottomCenter)) { i -> if (i == 3) openScan(ctx) else tab = i }
     }
 }
