@@ -160,8 +160,8 @@ private fun Home(progress: Progress, resumed: Int) {
                 Text("HI THERE 👋", style = MaterialTheme.typography.titleLarge, color = Ink)
                 Text("⚡ Level ${completed + 1} · ${level.title}", style = MaterialTheme.typography.labelMedium, color = Muted)
             }
-            Box(Modifier.background(Charcoal, Pill).padding(horizontal = 14.dp, vertical = 10.dp)) {
-                Text("🔥 $streak", style = MaterialTheme.typography.titleMedium, color = Ink)
+            Box(Modifier.background(Snow, Pill).padding(horizontal = 14.dp, vertical = 10.dp)) {
+                Text("🔥 $streak", style = MaterialTheme.typography.titleMedium, color = Charcoal)
             }
         }
 
@@ -201,7 +201,7 @@ private fun Home(progress: Progress, resumed: Int) {
         SPLITS.chunked(2).forEachIndexed { r, pair ->
             Row(Modifier.padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 pair.forEachIndexed { c, split ->
-                    val tile = tileColor(r * 2 + c + 1)
+                    val tile = tileColor(r * 2 + c)
                     Column(Modifier.weight(1f).background(tile, TileShape).clickable { startRoutine(ctx, split.steps) }.padding(18.dp)) {
                         Text(split.emoji, fontSize = 26.sp)
                         Spacer(Modifier.height(10.dp))
@@ -322,7 +322,7 @@ private fun Overview(progress: Progress, resumed: Int) {
                     Gauge(todayStats.kcal, KCAL_GOAL)
                     Spacer(Modifier.height(12.dp))
                     Row(
-                        Modifier.background(Charcoal, Pill).padding(horizontal = 16.dp, vertical = 10.dp),
+                        Modifier.background(Snow, Pill).padding(horizontal = 16.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text("👍", fontSize = 16.sp)
@@ -330,7 +330,7 @@ private fun Overview(progress: Progress, resumed: Int) {
                         Text(
                             if (todayStats.kcal >= KCAL_GOAL) "${todayStats.kcal} kcal burned today"
                             else "${KCAL_GOAL - todayStats.kcal} kcal more to finish it",
-                            style = MaterialTheme.typography.labelMedium, color = Ink,
+                            style = MaterialTheme.typography.labelMedium, color = Charcoal,
                         )
                     }
                 }
@@ -342,8 +342,8 @@ private fun Overview(progress: Progress, resumed: Int) {
                 val mins = week.reversed().map { it.secs / 60f }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     StatTile("🏃", "Reps", "${todayStats.reps}", "reps", Charcoal, Modifier.weight(1f)) { Sparkline(reps, Accent) }
-                    StatTile("🔥", "Calories", "${todayStats.kcal}", "kcal", Slate, Modifier.weight(1f)) { Bars(kcal, Accent) }
-                    StatTile("⏱", "Time", "${todayStats.secs / 60}", "min", AccentSoft, Modifier.weight(1f)) { Bars(mins, Bg) }
+                    StatTile("🔥", "Calories", "${todayStats.kcal}", "kcal", Slate, Modifier.weight(1f)) { Bars(kcal, Snow) }
+                    StatTile("⏱", "Time", "${todayStats.secs / 60}", "min", AccentSoft, Modifier.weight(1f)) { Bars(mins, Accent) }
                 }
                 Text("last 7 days", style = MaterialTheme.typography.labelSmall, color = Muted, modifier = Modifier.padding(top = 6.dp, start = 4.dp))
 
@@ -398,7 +398,7 @@ private fun Heatmap(dates: Set<LocalDate>, today: LocalDate) {
                 val done = day in dates
                 Box(
                     Modifier.size(14.dp)
-                        .background(if (done) Accent else if (day > today) Color.Transparent else Charcoal, RoundedCornerShape(3.dp))
+                        .background(if (done) Accent else if (day > today) Color.Transparent else Bg, RoundedCornerShape(3.dp))
                         .border(if (day == today) 2.dp else 0.dp, if (day == today) Snow else Color.Transparent, RoundedCornerShape(3.dp)),
                 )
             }
@@ -422,7 +422,7 @@ private fun Gauge(done: Int, goal: Int) {
             val arc = Size(size.width - s, size.width - s)
             val off = Offset(inset, inset + 6.dp.toPx())
             // hatched track: thin diagonal ticks along the arc
-            drawArc(Slate, 180f, 180f, false, off, arc, style = Stroke(s))
+            drawArc(Line, 180f, 180f, false, off, arc, style = Stroke(s))
             val cx = size.width / 2; val cy = off.y + arc.height / 2; val r = arc.width / 2
             for (i in 0..36) {
                 val a = Math.toRadians(180.0 + 5.0 * i)

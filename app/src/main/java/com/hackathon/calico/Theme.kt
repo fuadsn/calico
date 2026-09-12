@@ -12,20 +12,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// Palette: calico cat. Warm white coat, ginger patches, black patches, cream and tan in between.
-val Bg = Color(0xFFFFFBF5)          // screen background: warm white
-val Card = Color(0xFFF6EDE2)        // surfaces: cream
-val Charcoal = Color(0xFFFCE3CF)    // tiles, chips: peach; also text on Snow pills
-val Slate = Color(0xFFE9DCCB)       // secondary tiles: tan
-val Accent = Color(0xFFE8801F)      // ginger: accent, selected, progress
-val AccentSoft = Color(0xFF2B2118)  // black patch: fourth tile
+// Palette: calico cat. White coat, ginger and amber patches, black patches, a little peach between.
+val Bg = Color(0xFFFFFFFF)          // screen background: white coat
+val Card = Color(0xFFFFF4EA)        // surfaces: pale peach
+val Charcoal = Color(0xFFFFD9B3)    // tiles, chips: peach; also text on Snow pills
+val Slate = Color(0xFFFFB020)       // amber patch: tiles, count box
+val Accent = Color(0xFFF2801E)      // ginger patch: accent, selected, progress
+val AccentSoft = Color(0xFF1C1714)  // black patch: tiles
 val OnAccent = Color(0xFFFFFFFF)    // text and icons placed on the accent
-val Cloud = Color(0xFFF1E7DA)       // unselected nav circles
-val Snow = Color(0xFF2B2118)        // black for strong pills and bubbles
+val Cloud = Color(0xFFFFF4EA)       // unselected nav circles
+val Snow = Color(0xFF1C1714)        // black for strong pills, bubbles and badges
 val PillBg = Color(0xFFFFFFFF)      // floating bars
-val Ink = Color(0xFF2B2118)         // primary text
-val Muted = Color(0xFF9A8B7A)       // secondary text
-val Line = Color(0xFFE6D9C8)        // hairlines, inactive path
+val Ink = Color(0xFF1C1714)         // primary text
+val Muted = Color(0xFF8C7B6B)       // secondary text
+val Line = Color(0xFFF0E4D6)        // hairlines, inactive path
 
 // Radii: cards 24, tiles 20, everything tappable is a pill.
 val CardShape = RoundedCornerShape(24.dp)
@@ -63,8 +63,8 @@ fun CalicoTheme(content: @Composable () -> Unit) =
 /** "PIKE_PUSHUP" -> "Pike pushup" */
 val Exercise.label get() = name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }
 
-/** Tile colour per step: greys with a sage one every fourth. */
-fun tileColor(i: Int) = listOf(Charcoal, Slate, Card, AccentSoft)[i % 4]
+/** Tile colour per step: calico patches in turn, peach, ginger, black, amber. */
+fun tileColor(i: Int) = listOf(Charcoal, Accent, AccentSoft, Slate)[i % 4]
 
 /** Text colour that reads on a given tile. */
 fun onTile(c: Color) = if (c.luminance() > 0.4f) Ink else Bg
