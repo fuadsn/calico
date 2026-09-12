@@ -35,7 +35,7 @@ class PoseFigureRenderer(assets: AssetManager, exercise: String) {
         support: BodySupport? = ExerciseMotion.support(clip.exercise)) {
         clip.sample(seconds, landmarks)
         if (support != null) supportRig.apply(landmarks, support)
-        val flight = ExerciseMotion.flight(clip.exercise, seconds, clip.durationSeconds)
+        val flight = ExerciseMotion.flight(clip.exercise, seconds, if (clip.loop) clip.durationSeconds else 0f)
         val ground = (if (support == null) EDGES.minOf { landmarks[it * 3 + 1] } else 0f) - flight
         for (a in 0..2) {
             val offset = if (a == 1) ground else 0f

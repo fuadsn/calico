@@ -333,3 +333,25 @@ Regression tests check final solved torso travel, elbow excursion, jack foot
 clearance, stationary leg-raise pelvis, plank elbow height, contact residuals,
 bone lengths, and rejection of missing/tiny/unreachable surface pairs. All 17
 generated clips must still pass `node tools/check_clips.mjs`.
+
+### Shared captured JSON for every exercise
+
+Android's `export_pose` video mode now exports schema version 2 for whichever
+exercise is selected. Each JSON contains original `frames` (world landmarks),
+`normalizedFrames` (counter input), `visibilityFrames`, and `sampleTimesMs` from
+the same detector results, plus video/model SHA-256 hashes. No counter frames are
+invented by resampling. Non-looping playback interpolates using those exact
+timestamps, including uneven sample intervals. Raw multi-rep captures do not get
+the authored single-cycle jump trajectory applied over their full duration.
+
+`tools/import_motion.py` accepts either the Python extraction trace or Android's
+shared export. Select a reviewed complete rep with `--start` and `--end`; use
+`--output build/motion-review` to inspect the result before asset replacement.
+Visibility, source identity, detection gaps, and limb reconstruction checks still
+apply. Authored arm fallback is rejected for exercises counted from arm/elbow
+angles. Exporting a stream does not certify it as a correct, complete exercise.
+
+Current recorded coverage is still only SQUAT. The available PUSHUP trace has 93
+detected samples and zero fully visible body samples; it has not been promoted.
+The other 15 exercises have no local source recording. Their authored clips stay
+explicitly authored until usable recordings or existing MediaPipe traces are supplied.

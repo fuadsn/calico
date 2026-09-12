@@ -472,7 +472,14 @@ class WorkoutActivity : ComponentActivity() {
                     FloatArray(99) { n -> val j = joints[n / 3]
                         when (n % 3) { 0 -> j.x(); 1 -> j.y(); else -> j.z() } }
                 }
-                it.add(ts, points, confident)
+                val normalized = image?.takeIf { it.size == 33 }?.let { joints ->
+                    FloatArray(99) { n -> val j = joints[n / 3]
+                        when (n % 3) { 0 -> j.x(); 1 -> j.y(); else -> j.z() } }
+                }
+                val visibility = image?.takeIf { it.size == 33 }?.let { joints ->
+                    FloatArray(33) { j -> joints[j].visibility().orElse(0f) }
+                }
+                it.add(ts, points, normalized, visibility, confident)
             }
             analysed++
             i += step
@@ -480,7 +487,8 @@ class WorkoutActivity : ComponentActivity() {
         r.release()
         capture?.let {
             try {
-                val json = it.toJson(file.name)
+                val json = it.toJson(file.name, poseSourceHash(file.inputStream()),
+                    poseSourceHash(assets.open("pose_landmarker_lite.task")))
                 val folder = File(filesDir, "pose-exports").apply { mkdirs() }
                 File(folder, "${counter.exercise.name}.json").writeText(json)
                 Log.i("CALICO_POSE", "Exported ${counter.exercise.name} from ${file.name}")
@@ -531,6 +539,17 @@ class WorkoutActivity : ComponentActivity() {
     }
 
     // ---------- shared ----------
+
+    private fun poseSourceHash(input: java.io.InputStream): String = input.use { stream ->
+        val digest = java.security.MessageDigest.getInstance("SHA-256")
+        val buffer = ByteArray(65536)
+        var count = stream.read(buffer)
+        while (count != -1) {
+            digest.update(buffer, 0, count)
+            count = stream.read(buffer)
+        }
+        digest.digest().joinToString("") { "%02x".format(it) }
+    }
 
     private fun onPose(result: PoseLandmarkerResult, w: Int, h: Int) {
         val pose = result.landmarks().firstOrNull()

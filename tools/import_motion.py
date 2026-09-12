@@ -13,9 +13,23 @@ p.add_argument('trace', type=Path)
 p.add_argument('--start', type=int, required=True)
 p.add_argument('--end', type=int, required=True)
 p.add_argument('--arm-fallback', action='store_true', help='Explicitly use authored arms when 3D arm lengths are unreliable')
+p.add_argument('--output', type=Path, help='Optional review folder instead of replacing bundled recorded clips')
 args = p.parse_args()
 trace = json.loads(args.trace.read_text(encoding='utf-8'))
+if 'samples' not in trace:
+    fields = ('frames', 'normalizedFrames', 'visibilityFrames', 'sampleTimesMs')
+    assert all(k in trace for k in fields), 'Export must contain world and counter poses with timestamps'
+    assert len({len(trace[k]) for k in fields}) == 1, 'World/counter/timestamp lengths differ'
+    assert trace.get('space') == 'mediapipe_world', 'Expected MediaPipe world coordinates'
+    trace['samples'] = [dict(ms=ms, world=w, normalized=n, visibility=v)
+        for w, n, v, ms in zip(*(trace[k] for k in fields))]
+    # These are rebuilt from the selected interval below.
+    for key in (*fields, 'fps', 'loop', 'startMs', 'endMs', 'smoothing'):
+        trace.pop(key, None)
 samples = [s for s in trace['samples'] if args.start <= s['ms'] < args.end]
+assert all(len(s['world']) == 99 and len(s['normalized']) == 99 and len(s['visibility']) == 33 for s in samples), 'Invalid landmark count'
+assert all(np.isfinite(s['world']).all() and np.isfinite(s['normalized']).all() and
+           np.isfinite(s['visibility']).all() for s in samples), 'Non-finite detections'
 assert len(samples) >= 16 and args.end - args.start >= 1000, 'Need a complete repetition'
 assert all(min(s['visibility'][11:]) >= .5 for s in samples), 'Occluded body or extremities'
 assert all(0 < b['ms'] - a['ms'] <= 100 for a, b in zip(samples, samples[1:])), 'Detection gap'
@@ -39,6 +53,8 @@ bad_arms = max(variation[:4]) > .3
 assert not bad_arms or args.arm_fallback, 'Unreliable arms: review footage or explicitly select --arm-fallback'
 fallback_indices = []
 if bad_arms:
+    assert name in {'SQUAT', 'LUNGE', 'HIGH_KNEES', 'SITUP', 'LEG_RAISE', 'MOUNTAIN_CLIMBER'}, \
+        'Cannot replace the counted arm joints with authored motion; use a clearer recording'
     authored = json.loads((root / f'roomscan/src/main/assets/clips/{name}.json').read_text())
     a_frames = np.array(authored['frames']).reshape(-1, 33, 3)
     clean = raw_world.copy()
@@ -72,7 +88,7 @@ clip.update(sourceWorldFrames=raw_world.reshape(-1, 99).tolist(),
     quality=dict(limbLengthVariation=variation.tolist(), maxAcceptedLegVariation=.3,
         arms='authored_fallback' if bad_arms else 'recorded', legs='recorded',
         note='Visibility and geometric checks are not biomechanical ground truth'))
-folder = root / 'roomscan/src/main/assets/recorded-clips'
-folder.mkdir(exist_ok=True)
+folder = args.output or root / 'roomscan/src/main/assets/recorded-clips'
+folder.mkdir(parents=True, exist_ok=True)
 (folder / f'{name}.json').write_text(json.dumps(clip, separators=(',', ':')), encoding='utf-8')
 print(name, 'imported', len(samples), 'frames from', trace['sourceVideo'])

@@ -94,8 +94,9 @@ class SkinnedFigure(private val model: GltfModel, private val clip: PoseClip) {
             "PUSHUP", "INCLINE_PUSHUP", "PIKE_PUSHUP", "MOUNTAIN_CLIMBER", "DIP", "PLANK" -> 0f
             else -> 0.22f
         })
-        contacts.apply(retargeter, landmarks, seconds, clip.durationSeconds, support)
-        val flight = ExerciseMotion.flight(clip.exercise, seconds, clip.durationSeconds) / fitScale
+        val cycleDuration = if (clip.loop) clip.durationSeconds else 0f
+        contacts.apply(retargeter, landmarks, seconds, cycleDuration, support)
+        val flight = ExerciseMotion.flight(clip.exercise, seconds, cycleDuration) / fitScale
         for (m in retargeter.globals) m[13] += flight
         for (a in 0..2) {
             bounds[a] = retargeter.globals.minOf { it[12 + a] } * fitScale - 0.08f

@@ -23,10 +23,12 @@ class PoseClip(
     val fps: Float,
     val loop: Boolean,
     private val frames: List<FloatArray>,
+    private val sampleTimesMs: LongArray? = null,
 ) {
     val frameCount get() = frames.size
 
-    val durationSeconds get() = if (fps <= 0f) 0f else frames.size / fps
+    val durationSeconds get() = if (!loop && sampleTimesMs != null && sampleTimesMs.isNotEmpty())
+        (sampleTimesMs.last() - sampleTimesMs.first()) / 1000f else if (fps <= 0f) 0f else frames.size / fps
 
     /**
      * Writes the landmarks at [seconds] into [out], blending between the two nearest frames.
@@ -36,6 +38,20 @@ class PoseClip(
         if (frames.isEmpty()) return
         if (frames.size == 1) {
             frames[0].copyInto(out)
+            return
+        }
+        if (!loop && sampleTimesMs != null) {
+            val time = sampleTimesMs[0] + seconds.coerceAtLeast(0f) * 1000.0
+            var low = 0
+            var high = sampleTimesMs.lastIndex
+            while (low < high) {
+                val mid = (low + high + 1) / 2
+                if (sampleTimesMs[mid] <= time) low = mid else high = mid - 1
+            }
+            val next = (low + 1).coerceAtMost(frames.lastIndex)
+            val span = sampleTimesMs[next] - sampleTimesMs[low]
+            val blend = if (span == 0L) 0f else ((time - sampleTimesMs[low]) / span).toFloat().coerceIn(0f, 1f)
+            for (i in out.indices) out[i] = frames[low][i] + (frames[next][i] - frames[low][i]) * blend
             return
         }
         val position = seconds * fps
@@ -76,6 +92,12 @@ class PoseClip(
                 fps = root.optDouble("fps", 8.0).toFloat(),
                 loop = root.optBoolean("loop", true),
                 frames = frames,
+                sampleTimesMs = root.optJSONArray("sampleTimesMs")?.let { times ->
+                    require(times.length() == frames.size) { "Pose/timestamp count mismatch" }
+                    LongArray(times.length()) { times.getLong(it) }.also { values ->
+                        require((1 until values.size).all { values[it] > values[it - 1] }) { "Pose timestamps must increase" }
+                    }
+                },
             )
         }
     }
