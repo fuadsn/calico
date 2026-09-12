@@ -65,6 +65,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Rect
+import androidx.compose.foundation.shape.GenericShape
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.draw.shadow
@@ -218,13 +220,12 @@ private fun Home(progress: Progress, resumed: Int, onVoice: () -> Unit) {
             idx = selected.dayOfWeek.value - 1,
             title = "$dayName's Workout",
             subtitle = when {
-                dayDone -> "Done · ${dayStats.reps} reps · ${dayStats.kcal} kcal · ${dayStats.secs / 60} min"
-                ahead < 0 -> "No workout logged"
-                ahead == 0 -> "${level.title} · ${plan.size} exercises · ${level.blurb}"
-                else -> "Up next · ${dayLevel.title} · ${dayLevel.steps.size} exercises"
+                dayDone -> "Done · ${dayStats.kcal} kcal · ${dayStats.secs / 60} min"
+                ahead < 0 -> "Rest day"
+                ahead == 0 -> "${level.title} · ${plan.size} exercises"
+                else -> "${dayLevel.title} · ${dayLevel.steps.size} exercises"
             },
-            steps = daySteps,
-            button = when { dayDone && ahead == 0 -> "GO AGAIN"; daySteps.isNotEmpty() -> "START"; else -> null },
+            enabled = daySteps.isNotEmpty(),
         ) { startRoutine(ctx, daySteps) }
 
         Spacer(Modifier.height(16.dp))
@@ -296,47 +297,41 @@ private fun SplitCard(split: Split, tile: Color, modifier: Modifier, onClick: ()
     }
 }
 
-/** Card whose top edge dips in a valley under day [idx] of the week strip above it. */
+/** Card whose top edge dips in a valley under day [idx] of the week strip above it. Tap anywhere to start. */
 @Composable
-private fun DayCard(idx: Int, title: String, subtitle: String, steps: List<Step>, button: String?, onStart: () -> Unit) {
+private fun DayCard(idx: Int, title: String, subtitle: String, enabled: Boolean, onStart: () -> Unit) {
     val x by animateFloatAsState(idx.toFloat(), spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow), label = "dip")
-    val dipDepth = 16.dp
-    Column(
-        Modifier.fillMaxWidth().drawBehind {
-            val t = dipDepth.toPx(); val r = 24.dp.toPx(); val w = 36.dp.toPx()
-            val cx = (WEEK_PAD + DAY / 2).toPx() + x * (size.width - (WEEK_PAD * 2 + DAY).toPx()) / 6
-            val card = Path().apply { addRoundRect(RoundRect(Rect(0f, 0f, size.width, size.height), CornerRadius(r))) }
-            val dip = Path().apply {   // smooth valley scooped out under the chosen day
-                moveTo(cx - w, -r)
-                lineTo(cx - w, 0f)
-                cubicTo(cx - w * 0.5f, 0f, cx - w * 0.55f, t, cx, t)
-                cubicTo(cx + w * 0.55f, t, cx + w * 0.5f, 0f, cx + w, 0f)
-                lineTo(cx + w, -r)
-                close()
-            }
-            val p = Path.combine(PathOperation.Difference, card, dip)
-            drawPath(p, Card)
-        }.padding(top = dipDepth + 16.dp, start = 20.dp, end = 20.dp, bottom = 20.dp),
-    ) {
-        Text(title, style = MaterialTheme.typography.headlineSmall, color = Ink)
-        Spacer(Modifier.height(2.dp))
-        Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = Muted)
-        if (steps.isNotEmpty()) {
-            Spacer(Modifier.height(8.dp))
-            Text(steps.joinToString(" · ") { it.exercise.label }, style = MaterialTheme.typography.labelSmall, color = Ink.copy(0.7f))
-        }
-        if (button != null) {
-            Spacer(Modifier.height(16.dp))
-            Row(
-                Modifier.clip(Pill).background(Accent).clickable(onClick = onStart).padding(start = 22.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(button, style = MaterialTheme.typography.labelLarge, color = OnAccent)
-                Spacer(Modifier.width(12.dp))
-                Box(Modifier.size(36.dp).background(Charcoal, CircleShape), contentAlignment = Alignment.Center) {
-                    Icon(Icons.Outlined.NorthEast, null, tint = Ink, modifier = Modifier.size(18.dp))
+    val d = LocalDensity.current
+    val shape = remember(x) {
+        GenericShape { size, _ ->
+            with(d) {
+                val t = DIP.toPx(); val r = 24.dp.toPx(); val w = 52.dp.toPx()
+                val cx = (WEEK_PAD + DAY / 2).toPx() + x * (size.width - (WEEK_PAD * 2 + DAY).toPx()) / 6
+                val card = Path().apply { addRoundRect(RoundRect(Rect(0f, 0f, size.width, size.height), CornerRadius(r))) }
+                val dip = Path().apply {   // rounded bowl scooped out under the chosen day
+                    moveTo(cx - w, -r)
+                    lineTo(cx - w, 0f)
+                    cubicTo(cx - w * 0.55f, 0f, cx - w * 0.5f, t, cx, t)
+                    cubicTo(cx + w * 0.5f, t, cx + w * 0.55f, 0f, cx + w, 0f)
+                    lineTo(cx + w, -r)
+                    close()
                 }
+                addPath(Path.combine(PathOperation.Difference, card, dip))
             }
+        }
+    }
+    Row(
+        Modifier.fillMaxWidth().clip(shape).background(Card).clickable(enabled = enabled, onClick = onStart)
+            .padding(top = DIP + 18.dp, start = 22.dp, end = 18.dp, bottom = 18.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            Text(title, style = MaterialTheme.typography.headlineSmall, color = Ink)
+            Spacer(Modifier.height(2.dp))
+            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = Muted)
+        }
+        if (enabled) Box(Modifier.size(48.dp).background(Accent, CircleShape), contentAlignment = Alignment.Center) {
+            Icon(Icons.Outlined.NorthEast, "Start", tint = OnAccent, modifier = Modifier.size(22.dp))
         }
     }
 }
@@ -389,6 +384,7 @@ private fun Legend(color: Color, hollow: Boolean, value: String, label: String) 
 }
 
 private val WEEK_PAD = 6.dp    // week strip inset
+private val DIP = 22.dp        // valley depth
 private val DAY = 38.dp        // day circle
 
 /** Mon..Sun of this week: letters, then numbers. Only the chosen day is circled; done days read coral. */
