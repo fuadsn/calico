@@ -18,7 +18,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -38,11 +37,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CameraAlt
+import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.Home
-import androidx.compose.material.icons.outlined.Map
+import androidx.compose.material.icons.outlined.Insights
 import androidx.compose.material.icons.outlined.NorthEast
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -88,21 +89,27 @@ fun openScan(ctx: android.content.Context) {
     ctx.startActivity(Intent(ctx, com.calico.roomscan.ScanActivity::class.java))
 }
 
+private fun startRoutine(ctx: android.content.Context, steps: List<Step>) =
+    ctx.startActivity(Intent(ctx, WorkoutActivity::class.java).putExtra("routine", steps.encode()))
+
 @Composable
 private fun App(resumed: Int) {
     val ctx = LocalContext.current
     val progress = remember { Progress(ctx) }
     var tab by remember { mutableIntStateOf(0) }
     Box(Modifier.fillMaxSize().background(Bg)) {
-        if (tab == 0) Home(progress, resumed) else Journey(progress, resumed)
-        BottomBar(tab, Modifier.align(Alignment.BottomCenter)) { i -> if (i == 2) openScan(ctx) else tab = i }
+        when (tab) { 0 -> Home(progress, resumed); 1 -> Overview(progress, resumed); else -> Exercises() }
+        BottomBar(tab, Modifier.align(Alignment.BottomCenter)) { i -> if (i == 3) openScan(ctx) else tab = i }
     }
 }
 
-/** Floating white pill with circular icon buttons, the selected one filled purple. */
+/** Floating pill with circular icon buttons, the selected one filled with the accent. */
 @Composable
 private fun BottomBar(selected: Int, modifier: Modifier, onSelect: (Int) -> Unit) {
-    val items = listOf<Pair<ImageVector, String>>(Icons.Outlined.Home to "Home", Icons.Outlined.Map to "Journey", Icons.Outlined.CameraAlt to "Scan")
+    val items = listOf<Pair<ImageVector, String>>(
+        Icons.Outlined.Home to "Home", Icons.Outlined.Insights to "Overview",
+        Icons.Outlined.FitnessCenter to "Exercises", Icons.Outlined.CameraAlt to "Scan",
+    )
     Row(
         modifier.navigationBarsPadding().padding(bottom = 12.dp).shadow(16.dp, Pill, ambientColor = Color.Black.copy(0.4f)).background(Card, Pill).padding(8.dp),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -115,6 +122,13 @@ private fun BottomBar(selected: Int, modifier: Modifier, onSelect: (Int) -> Unit
             ) { Icon(icon, name, tint = if (on) OnAccent else onTile(Cloud)) }
         }
     }
+}
+
+@Composable
+private fun SectionTitle(text: String) {
+    Spacer(Modifier.height(24.dp))
+    Text(text, style = MaterialTheme.typography.headlineSmall, color = Ink)
+    Spacer(Modifier.height(12.dp))
 }
 
 // ---------------- Home ----------------
@@ -131,20 +145,18 @@ private fun Home(progress: Progress, resumed: Int) {
     val plan = remember(key) { progress.todayPlan }
     val completed = remember(key) { progress.completed }
     val level = LEVELS[remember(key) { progress.levelIndex }]
-    var filter by remember { mutableIntStateOf(0) }
-
     Column(
         Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding().padding(horizontal = 20.dp).padding(top = 12.dp, bottom = 120.dp),
     ) {
-        // header
+        // header: avatar top-left, greeting, streak chip
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(52.dp).background(Charcoal, CircleShape).combinedClickable(onClick = {}, onLongClick = {
+                Modifier.size(56.dp).background(Accent, CircleShape).combinedClickable(onClick = {}, onLongClick = {
                     progress.reset(); resetsKey++   // demo rehearsals start from a zero streak
                     Toast.makeText(ctx, "Progress reset", Toast.LENGTH_SHORT).show()
                 }),
                 contentAlignment = Alignment.Center,
-            ) { Text("🐈", fontSize = 26.sp) }
+            ) { Text("🐈", fontSize = 28.sp) }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text("HI THERE 👋", style = MaterialTheme.typography.titleLarge, color = Ink)
@@ -158,11 +170,11 @@ private fun Home(progress: Progress, resumed: Int) {
         Spacer(Modifier.height(24.dp))
         WeekStrip(dates)
 
-        // Today's challenge
+        // Today's workout
         Spacer(Modifier.height(20.dp))
         Box(Modifier.fillMaxWidth().background(Accent, CardShape).padding(20.dp)) {
             Column {
-                Text("Today's Challenge", style = MaterialTheme.typography.headlineSmall, color = OnAccent)
+                Text("Today's Workout", style = MaterialTheme.typography.headlineSmall, color = OnAccent)
                 Spacer(Modifier.height(2.dp))
                 Text(
                     if (doneToday) "Done for today. Go again?" else "${level.title} · ${plan.size} exercises · ${level.blurb}",
@@ -171,9 +183,7 @@ private fun Home(progress: Progress, resumed: Int) {
                 Spacer(Modifier.height(16.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Row(
-                        Modifier.background(Snow, Pill)
-                            .clickable { ctx.startActivity(Intent(ctx, WorkoutActivity::class.java).putExtra("routine", plan.encode())) }
-                            .padding(start = 22.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                        Modifier.background(Snow, Pill).clickable { startRoutine(ctx, plan) }.padding(start = 22.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(if (doneToday) "GO AGAIN" else "START", style = MaterialTheme.typography.labelLarge, color = Charcoal)
@@ -188,47 +198,26 @@ private fun Home(progress: Progress, resumed: Int) {
             }
         }
 
-        // filter chips
-        Spacer(Modifier.height(20.dp))
-        Row(Modifier.background(Card, Pill).padding(6.dp).horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            listOf("All", "Warm-up", "Workout").forEachIndexed { i, t ->
-                val on = i == filter
-                Text(
-                    t, style = MaterialTheme.typography.labelMedium, color = if (on) OnAccent else Muted,
-                    modifier = Modifier.background(if (on) Accent else Color.Transparent, Pill).clickable { filter = i }.padding(horizontal = 18.dp, vertical = 10.dp),
-                )
-            }
-        }
-
-        // stat tiles
-        Spacer(Modifier.height(16.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Column(Modifier.weight(1f).background(Charcoal, TileShape).padding(18.dp)) {
-                Row { Text("Streak", style = MaterialTheme.typography.titleMedium, color = Ink, modifier = Modifier.weight(1f)); Text("🔥", fontSize = 22.sp) }
-                Spacer(Modifier.height(18.dp))
-                Text("$streak", style = MaterialTheme.typography.displayMedium, color = Ink)
-                Text(if (streak == 1) "day" else "days", style = MaterialTheme.typography.labelMedium, color = Muted)
-            }
-            Column(Modifier.weight(1f).background(Slate, TileShape).padding(18.dp)) {
-                Text("My Goals", style = MaterialTheme.typography.titleMedium, color = Ink)
-                Spacer(Modifier.height(6.dp))
-                Text("Keep it up, you can\nreach Absolute Beast.", style = MaterialTheme.typography.labelSmall, color = Ink.copy(0.7f))
-                Spacer(Modifier.height(14.dp))
-                Box(Modifier.fillMaxWidth().background(Snow.copy(0.15f), Pill).padding(4.dp)) {
-                    Box(Modifier.fillMaxWidth(maxOf(0.18f, completed.toFloat() / LEVELS.size)).height(26.dp).background(Snow, Pill), contentAlignment = Alignment.Center) {
-                        Text("$completed/${LEVELS.size}", style = MaterialTheme.typography.labelSmall, color = Charcoal)
+        // splits: two per row
+        SectionTitle("Exercise splits")
+        SPLITS.chunked(2).forEachIndexed { r, pair ->
+            Row(Modifier.padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                pair.forEachIndexed { c, split ->
+                    val tile = tileColor(r * 2 + c + 1)
+                    Column(Modifier.weight(1f).background(tile, TileShape).clickable { startRoutine(ctx, split.steps) }.padding(18.dp)) {
+                        Text(split.emoji, fontSize = 26.sp)
+                        Spacer(Modifier.height(10.dp))
+                        Text(split.title, style = MaterialTheme.typography.titleLarge, color = onTile(tile))
+                        Text("${split.steps.size} exercises", style = MaterialTheme.typography.labelSmall, color = onTile(tile).copy(0.6f))
                     }
                 }
             }
         }
 
-        // plan
-        Spacer(Modifier.height(24.dp))
-        Text("Your plan", style = MaterialTheme.typography.headlineSmall, color = Ink)
-        Spacer(Modifier.height(12.dp))
-        val shown = plan.filter { filter == 0 || (filter == 1) == it.warmup }
-        shown.forEach { step ->
-            val tile = tileColor(plan.indexOf(step))
+        // today's plan
+        SectionTitle("Today's plan")
+        plan.forEachIndexed { i, step ->
+            val tile = tileColor(i)
             Row(
                 Modifier.fillMaxWidth().padding(bottom = 10.dp).background(tile, TileShape).padding(18.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -265,7 +254,7 @@ private fun Ring(fraction: Float, text: String) {
     }
 }
 
-/** Mon..Sun of this week: letters, then day numbers. Today is a lime circle, done days purple. */
+/** Mon..Sun of this week: letters, then day numbers. Today is a strong circle, done days accent. */
 @Composable
 private fun WeekStrip(dates: Set<LocalDate>) {
     val today = LocalDate.now()
@@ -295,23 +284,74 @@ private fun WeekStrip(dates: Set<LocalDate>) {
     }
 }
 
-// ---------------- Journey ----------------
+// ---------------- Overview ----------------
 
-private val ROW_H = 132.dp
-private val NODE = 72.dp
-private fun wobble(i: Int) = (sin(i * 1.7) * 90).dp   // horizontal offset of node i on the winding path
+private const val WEEKS = 16
 
 @Composable
-private fun Journey(progress: Progress, resumed: Int) {
+private fun Overview(progress: Progress, resumed: Int) {
     val ctx = LocalContext.current
+    val today = LocalDate.now()
+    val dates = remember(resumed) { progress.dates }
+    val streak = remember(resumed) { progress.streak }
     val completed = remember(resumed) { progress.completed }
     val current = remember(resumed) { progress.levelIndex }
+    val todayStats = remember(resumed) { progress.day(today) }
+    val week = remember(resumed) { (0..6).map { progress.day(today.minusDays(it.toLong())) } }
     LazyColumn(Modifier.fillMaxSize().statusBarsPadding(), contentPadding = PaddingValues(top = 12.dp, bottom = 120.dp)) {
         item {
             Column(Modifier.padding(horizontal = 20.dp)) {
-                Text("Your Journey", style = MaterialTheme.typography.headlineLarge, color = Ink)
-                Text("$completed of ${LEVELS.size} levels done", style = MaterialTheme.typography.bodyMedium, color = Muted)
-                Spacer(Modifier.height(16.dp))
+                Text("Overview", style = MaterialTheme.typography.headlineLarge, color = Ink)
+                Text("$streak day streak · ${dates.size} workouts total", style = MaterialTheme.typography.bodyMedium, color = Muted)
+
+                // GitHub-style heatmap: one column per week, Mon at the top
+                Spacer(Modifier.height(20.dp))
+                Column(Modifier.fillMaxWidth().background(Card, CardShape).padding(16.dp)) {
+                    Text("Activity", style = MaterialTheme.typography.titleMedium, color = Ink)
+                    Spacer(Modifier.height(12.dp))
+                    Heatmap(dates, today)
+                }
+
+                // goal left, calories right
+                Spacer(Modifier.height(12.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Column(Modifier.weight(1f).background(Charcoal, TileShape).padding(18.dp)) {
+                        Text("Goal", style = MaterialTheme.typography.titleMedium, color = Ink)
+                        Spacer(Modifier.height(6.dp))
+                        Text(LEVELS[current].title, style = MaterialTheme.typography.headlineSmall, color = Accent)
+                        Text("level ${current + 1} of ${LEVELS.size}", style = MaterialTheme.typography.labelSmall, color = Muted)
+                        Spacer(Modifier.height(14.dp))
+                        Box(Modifier.fillMaxWidth().background(Snow.copy(0.15f), Pill).padding(4.dp)) {
+                            Box(Modifier.fillMaxWidth(maxOf(0.18f, completed.toFloat() / LEVELS.size)).height(26.dp).background(Snow, Pill), contentAlignment = Alignment.Center) {
+                                Text("$completed/${LEVELS.size}", style = MaterialTheme.typography.labelSmall, color = Charcoal)
+                            }
+                        }
+                        Spacer(Modifier.height(14.dp))
+                        Text("🔥 $streak day streak", style = MaterialTheme.typography.labelMedium, color = Ink)
+                    }
+                    Column(Modifier.weight(1f).background(Slate, TileShape).padding(18.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Calories", style = MaterialTheme.typography.titleMedium, color = Ink, modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(12.dp))
+                        Donut(todayStats.kcal, KCAL_GOAL)
+                        Spacer(Modifier.height(12.dp))
+                        Row(Modifier.fillMaxWidth()) {
+                            Stat("${todayStats.kcal}", "burned", Modifier.weight(1f))
+                            Stat("${maxOf(0, KCAL_GOAL - todayStats.kcal)}", "left", Modifier.weight(1f))
+                        }
+                    }
+                }
+
+                // this week
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth().background(Card, TileShape).padding(18.dp)) {
+                    Stat("${week.count { it.kcal > 0 || it.reps > 0 }}", "workouts", Modifier.weight(1f))
+                    Stat("${week.sumOf { it.reps }}", "reps", Modifier.weight(1f))
+                    Stat("${week.sumOf { it.secs } / 60}", "minutes", Modifier.weight(1f))
+                    Stat("${week.sumOf { it.kcal }}", "kcal", Modifier.weight(1f))
+                }
+                Text("last 7 days", style = MaterialTheme.typography.labelSmall, color = Muted, modifier = Modifier.padding(top = 6.dp, start = 4.dp))
+
+                SectionTitle("Your journey")
             }
         }
         itemsIndexed(LEVELS) { i, level ->
@@ -321,13 +361,99 @@ private fun Journey(progress: Progress, resumed: Int) {
                 else -> NodeState.LOCKED
             }
             JourneyRow(i, level, state, last = i == LEVELS.lastIndex) {
-                if (state != NodeState.LOCKED)
-                    ctx.startActivity(Intent(ctx, WorkoutActivity::class.java).putExtra("routine", level.steps.encode()))
+                if (state != NodeState.LOCKED) startRoutine(ctx, level.steps)
                 else Toast.makeText(ctx, "Finish ${LEVELS[i - 1].title} first", Toast.LENGTH_SHORT).show()
             }
         }
     }
 }
+
+@Composable
+private fun Stat(value: String, label: String, modifier: Modifier) = Column(modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+    Text(value, style = MaterialTheme.typography.headlineSmall, color = Ink)
+    Text(label, style = MaterialTheme.typography.labelSmall, color = Muted)
+}
+
+/** WEEKS columns of 7 cells, this week last. Done days accent, today outlined. */
+@Composable
+private fun Heatmap(dates: Set<LocalDate>, today: LocalDate) {
+    val start = today.minusDays((today.dayOfWeek.value - 1).toLong()).minusWeeks((WEEKS - 1).toLong())
+    val cell = 6.dp
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        for (w in 0 until WEEKS) Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+            for (d in 0..6) {
+                val day = start.plusWeeks(w.toLong()).plusDays(d.toLong())
+                val done = day in dates
+                Box(
+                    Modifier.size(14.dp)
+                        .background(if (done) Accent else if (day > today) Color.Transparent else Charcoal, RoundedCornerShape(3.dp))
+                        .border(if (day == today) 2.dp else 0.dp, if (day == today) Snow else Color.Transparent, RoundedCornerShape(3.dp)),
+                )
+            }
+        }
+    }
+    Spacer(Modifier.height(cell))
+    Row(Modifier.fillMaxWidth()) {
+        Text("${WEEKS} weeks ago", style = MaterialTheme.typography.labelSmall, color = Muted, modifier = Modifier.weight(1f))
+        Text("this week", style = MaterialTheme.typography.labelSmall, color = Muted)
+    }
+}
+
+/** Calorie ring: burned in accent, the rest of the goal in a faint track. */
+@Composable
+private fun Donut(done: Int, goal: Int) {
+    val f = (done.toFloat() / goal).coerceIn(0f, 1f)
+    Box(Modifier.size(110.dp), contentAlignment = Alignment.Center) {
+        Canvas(Modifier.fillMaxSize()) {
+            val s = 12.dp.toPx(); val inset = s / 2; val arc = Size(size.width - s, size.height - s)
+            drawArc(Snow.copy(0.15f), 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(s))
+            drawArc(Accent, -90f, 360f * f, false, Offset(inset, inset), arc, style = Stroke(s, cap = StrokeCap.Round))
+        }
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("$done", style = MaterialTheme.typography.headlineLarge, color = Ink)
+            Text("of $goal", style = MaterialTheme.typography.labelSmall, color = Muted)
+        }
+    }
+}
+
+// ---------------- Exercises ----------------
+
+/** Every exercise, free mode: tap one and count until you stop. */
+@Composable
+private fun Exercises() {
+    val ctx = LocalContext.current
+    Column(
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding().padding(horizontal = 20.dp).padding(top = 12.dp, bottom = 120.dp),
+    ) {
+        Text("Exercises", style = MaterialTheme.typography.headlineLarge, color = Ink)
+        Text("Free mode, no target. Tap one to start counting.", style = MaterialTheme.typography.bodyMedium, color = Muted)
+        Spacer(Modifier.height(16.dp))
+        Exercise.values().forEachIndexed { i, e ->
+            val tile = tileColor(i)
+            Row(
+                Modifier.fillMaxWidth().padding(bottom = 10.dp).background(tile, TileShape)
+                    .clickable { ctx.startActivity(Intent(ctx, WorkoutActivity::class.java).putExtra("exercise", e.name)) }
+                    .padding(18.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text(e.label, style = MaterialTheme.typography.titleLarge, color = onTile(tile))
+                    Text(
+                        if (e.holdSec > 0) "Hold · ${e.holdSec}s" else "Reps · ${e.cue.lowercase()}",
+                        style = MaterialTheme.typography.labelSmall, color = onTile(tile).copy(0.6f),
+                    )
+                }
+                Icon(Icons.Outlined.NorthEast, null, tint = onTile(tile).copy(0.6f))
+            }
+        }
+    }
+}
+
+// ---------------- Journey (inside Overview) ----------------
+
+private val ROW_H = 132.dp
+private val NODE = 72.dp
+private fun wobble(i: Int) = (sin(i * 1.7) * 90).dp   // horizontal offset of node i on the winding path
 
 private enum class NodeState { DONE, CURRENT, LOCKED }
 

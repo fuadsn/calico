@@ -42,6 +42,11 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Pause
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.SkipNext
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.remember
@@ -195,7 +200,13 @@ class WorkoutActivity : ComponentActivity() {
             cameraProvider?.unbindAll()   // camera + model idle on the summary screen
             if (!bench) {
                 val p = Progress(this)
-                streakBefore = p.streak; p.recordWorkout(); streakAfter = p.streak
+                streakBefore = p.streak
+                p.recordWorkout(
+                    reps = results.filter { it.first.exercise.holdSec == 0 }.sumOf { it.second },
+                    secs = ((SystemClock.uptimeMillis() - startedAt) / 1000).toInt(),
+                    kcal = results.sumOf { kcalOf(it.first, it.second).toDouble() }.toInt(),
+                )
+                streakAfter = p.streak
             }
             say("Workout complete")
             return
@@ -223,6 +234,7 @@ class WorkoutActivity : ComponentActivity() {
             AndroidView({ overlay }, Modifier.fillMaxSize())
             Hud()
             if (phase == Phase.REST) Rest()
+            if (!bench) FloatingBar(Modifier.align(Alignment.BottomCenter))
         }
     }
 
@@ -247,11 +259,6 @@ class WorkoutActivity : ComponentActivity() {
                     )
                 }
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Box(
-                        Modifier.size(52.dp).background(Snow, CircleShape).clickable { phase = if (phase == Phase.PAUSED) Phase.RUNNING else Phase.PAUSED },
-                        contentAlignment = Alignment.Center,
-                    ) { Icon(if (phase == Phase.PAUSED) Icons.Outlined.PlayArrow else Icons.Outlined.Pause, "pause", tint = Charcoal) }
-                    Spacer(Modifier.height(14.dp))
                     Column(Modifier.background(Snow, Pill).padding(horizontal = 14.dp, vertical = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(if (open) "$count" else "$count / $target", style = MaterialTheme.typography.titleMedium, color = Charcoal)
                         Text(if (hold) "seconds" else "reps", style = MaterialTheme.typography.labelSmall, color = Slate)
@@ -274,7 +281,7 @@ class WorkoutActivity : ComponentActivity() {
             }
             benchDone?.let { Text(it, Modifier.align(Alignment.CenterHorizontally).padding(8.dp), style = MaterialTheme.typography.titleMedium, color = Accent) }
             // bottom sheet
-            Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)).padding(24.dp).navigationBarsPadding()) {
+            Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(topStart = 32.dp, topEnd = 32.dp)).padding(24.dp).navigationBarsPadding().padding(bottom = 84.dp)) {
                 Box(Modifier.align(Alignment.CenterHorizontally).size(width = 40.dp, height = 4.dp).background(Line, Pill))
                 Spacer(Modifier.height(18.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -293,21 +300,35 @@ class WorkoutActivity : ComponentActivity() {
                     }
                 }
                 if (!bench) {
-                    Spacer(Modifier.height(18.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            if (recordingNow) "■ STOP REC" else "● REC",
-                            Modifier.clickable(onClick = ::toggleRecord).padding(8.dp),
-                            style = MaterialTheme.typography.labelMedium, color = if (recordingNow) Accent else Muted,
-                        )
-                        Spacer(Modifier.weight(1f))
-                        if (!open) Text(
-                            if (stepIndex == steps.lastIndex) "FINISH" else "SKIP",
-                            Modifier.background(Snow, Pill).clickable(onClick = ::advance).padding(horizontal = 26.dp, vertical = 14.dp),
-                            style = MaterialTheme.typography.labelLarge, color = Charcoal,
-                        )
-                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        if (recordingNow) "■ STOP REC" else "● REC",
+                        Modifier.clickable(onClick = ::toggleRecord).padding(8.dp),
+                        style = MaterialTheme.typography.labelMedium, color = if (recordingNow) Accent else Muted,
+                    )
                 }
+            }
+        }
+    }
+
+    /** Floating pill like the Home tab bar: back, pause, skip/finish. */
+    @Composable
+    private fun FloatingBar(modifier: Modifier) {
+        val open = steps[stepIndex].target == Int.MAX_VALUE
+        Row(
+            modifier.navigationBarsPadding().padding(bottom = 12.dp).shadow(16.dp, Pill, ambientColor = Color.Black.copy(0.4f)).background(Card, Pill).padding(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            @Composable fun Btn(icon: ImageVector, name: String, on: Boolean = false, onClick: () -> Unit) = Box(
+                Modifier.size(56.dp).background(if (on) Accent else Cloud, CircleShape).clickable(onClick = onClick),
+                contentAlignment = Alignment.Center,
+            ) { Icon(icon, name, tint = if (on) OnAccent else onTile(Cloud)) }
+            Btn(Icons.AutoMirrored.Outlined.ArrowBack, "back") { finish() }
+            Btn(if (phase == Phase.PAUSED) Icons.Outlined.PlayArrow else Icons.Outlined.Pause, "pause", on = phase == Phase.PAUSED) {
+                phase = if (phase == Phase.PAUSED) Phase.RUNNING else Phase.PAUSED
+            }
+            Btn(if (stepIndex == steps.lastIndex) Icons.Outlined.Check else Icons.Outlined.SkipNext, if (open) "finish" else "skip", on = true) {
+                if (open) { results += steps[stepIndex] to count; phase = Phase.DONE; cameraProvider?.unbindAll() } else advance()
             }
         }
     }
