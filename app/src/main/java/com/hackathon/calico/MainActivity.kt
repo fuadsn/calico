@@ -198,9 +198,10 @@ private fun Home(progress: Progress, resumed: Int) {
 
         // splits: two per row, calico patches in turn
         SectionTitle("Exercise splits")
+        val patches = listOf(Accent, Charcoal, Card, Snow, Charcoal, Accent)   // ginger and dark on opposite corners
         SPLITS.chunked(2).forEachIndexed { r, pair ->
             Row(Modifier.padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                pair.forEachIndexed { c, split -> SplitCard(split, tileColor(r * 2 + c + 1), Modifier.weight(1f)) { startRoutine(ctx, split.steps) } }
+                pair.forEachIndexed { c, split -> SplitCard(split, patches[(r * 2 + c) % patches.size], Modifier.weight(1f)) { startRoutine(ctx, split.steps) } }
             }
         }
 
