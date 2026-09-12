@@ -12,19 +12,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// Palette: #3D3D3D charcoal, #578E7E teal, #F5ECD5 sand, #FFFAEC cream. Dark theme, inverted.
-val Bg = Color(0xFF2E2E2E)          // screen background (deeper charcoal)
-val Card = Color(0xFF3D3D3D)        // surfaces
-val Charcoal = Color(0xFF4A4A4A)    // tiles, chips; also text on Snow pills
-val Slate = Color(0xFF575757)       // secondary tiles
-val Accent = Color(0xFF578E7E)      // teal: accent, selected, progress
-val AccentSoft = Color(0xFFF5ECD5)  // sand: fourth tile
-val OnAccent = Color(0xFFFFFAEC)    // text and icons placed on the accent
-val Cloud = Color(0xFFF5ECD5)       // sand for unselected nav circles
-val Snow = Color(0xFFFFFAEC)        // cream for strong pills and bubbles
-val Ink = Color(0xFFFFFAEC)         // primary text on dark
-val Muted = Color(0xFFC4BBA3)       // secondary text on dark (muted sand)
-val Line = Color(0xFF4F4F4F)        // hairlines, inactive path
+// Palette: #584D3D stone brown, #9F956C / #CBBF7A sand, #F4E87C pale amber, #EBF38B lime cream.
+val Bg = Color(0xFF3F3728)          // screen background (deeper stone brown)
+val Card = Color(0xFF584D3D)        // surfaces
+val Charcoal = Color(0xFF6A5D4A)    // tiles, chips; also text on Snow pills
+val Slate = Color(0xFF7D6E58)       // secondary tiles
+val Accent = Color(0xFFEBF38B)      // lime cream: accent, selected, progress
+val AccentSoft = Color(0xFFCBBF7A)  // sand: fourth tile
+val OnAccent = Color(0xFF3F3728)    // text and icons placed on the accent
+val Cloud = Color(0xFFCBBF7A)       // sand for unselected nav circles
+val Snow = Color(0xFFF4E87C)        // pale amber for strong pills and bubbles
+val Ink = Color(0xFFFAF6E4)         // primary text on dark
+val Muted = Color(0xFFCBBF7A)       // secondary text on dark
+val Line = Color(0xFF6A5D4A)        // hairlines, inactive path
 
 // Radii: cards 24, tiles 20, everything tappable is a pill.
 val CardShape = RoundedCornerShape(24.dp)
