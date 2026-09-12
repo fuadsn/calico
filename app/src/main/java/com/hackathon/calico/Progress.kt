@@ -42,7 +42,10 @@ val LEVELS = listOf(
 )
 
 /** Exercise splits: pick a body part and go. Shown on Home under today's workout. */
-data class Split(val title: String, val emoji: String, val steps: List<Step>)
+data class Split(val title: String, val emoji: String, val steps: List<Step>) {
+    /** Rough length: 3 s a rep, holds as-is, 5 s rest between steps. */
+    val minutes get() = (steps.sumOf { if (it.exercise.holdSec > 0) it.target else it.target * 3 } + 5 * (steps.size - 1) + 59) / 60
+}
 
 val SPLITS = listOf(
     Split("Push", "💪", listOf(warm(Exercise.JUMPING_JACK, 15), Step(Exercise.INCLINE_PUSHUP, 8), Step(Exercise.PUSHUP, 8), Step(Exercise.PIKE_PUSHUP, 5), Step(Exercise.DIP, 6))),

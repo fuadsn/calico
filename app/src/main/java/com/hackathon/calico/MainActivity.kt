@@ -196,19 +196,11 @@ private fun Home(progress: Progress, resumed: Int) {
             }
         }
 
-        // splits: two per row
+        // splits: two per row, calico patches in turn
         SectionTitle("Exercise splits")
         SPLITS.chunked(2).forEachIndexed { r, pair ->
             Row(Modifier.padding(bottom = 12.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                pair.forEachIndexed { c, split ->
-                    val tile = tileColor(r * 2 + c + 1)
-                    Column(Modifier.weight(1f).background(tile, TileShape).clickable { startRoutine(ctx, split.steps) }.padding(18.dp)) {
-                        Text(split.emoji, fontSize = 26.sp)
-                        Spacer(Modifier.height(10.dp))
-                        Text(split.title, style = MaterialTheme.typography.titleLarge, color = onTile(tile))
-                        Text("${split.steps.size} exercises", style = MaterialTheme.typography.labelSmall, color = onTile(tile).copy(0.6f))
-                    }
-                }
+                pair.forEachIndexed { c, split -> SplitCard(split, tileColor(r * 2 + c + 1), Modifier.weight(1f)) { startRoutine(ctx, split.steps) } }
             }
         }
 
@@ -236,6 +228,36 @@ private fun Home(progress: Progress, resumed: Int) {
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SplitCard(split: Split, tile: Color, modifier: Modifier, onClick: () -> Unit) {
+    val fg = onTile(tile)
+    Column(modifier.background(tile, TileShape).clickable(onClick = onClick).padding(16.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(40.dp).background(fg.copy(0.12f), CircleShape), contentAlignment = Alignment.Center) { Text(split.emoji, fontSize = 20.sp) }
+            Spacer(Modifier.weight(1f))
+            Box(Modifier.size(32.dp).background(fg, CircleShape), contentAlignment = Alignment.Center) {
+                Icon(Icons.Outlined.NorthEast, null, tint = tile, modifier = Modifier.size(16.dp))
+            }
+        }
+        Spacer(Modifier.height(14.dp))
+        Text(split.title, style = MaterialTheme.typography.titleLarge, color = fg)
+        Text("${split.steps.size} exercises · ~${split.minutes} min", style = MaterialTheme.typography.labelSmall, color = fg.copy(0.65f))
+        Spacer(Modifier.height(10.dp))
+        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            split.steps.take(2).forEach {
+                Text(
+                    it.exercise.label, style = MaterialTheme.typography.labelSmall, color = fg, maxLines = 1,
+                    modifier = Modifier.background(fg.copy(0.12f), Pill).padding(horizontal = 8.dp, vertical = 4.dp),
+                )
+            }
+            if (split.steps.size > 2) Text(
+                "+${split.steps.size - 2}", style = MaterialTheme.typography.labelSmall, color = fg,
+                modifier = Modifier.background(fg.copy(0.12f), Pill).padding(horizontal = 8.dp, vertical = 4.dp),
+            )
         }
     }
 }
