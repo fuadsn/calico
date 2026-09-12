@@ -222,10 +222,10 @@ private fun Home(progress: Progress, resumed: Int) {
                         }.padding(vertical = 6.dp))
                     Text(if (step.warmup) "Warm-up" else "Workout", style = MaterialTheme.typography.labelSmall, color = onTile(tile).copy(0.6f))
                 }
-                Box(Modifier.size(58.dp).background(Snow, CircleShape), contentAlignment = Alignment.Center) {
+                Box(Modifier.size(58.dp).background(onTile(tile), CircleShape), contentAlignment = Alignment.Center) {
                     Text(
                         if (step.exercise.holdSec > 0) "${step.target}s" else "×${step.target}",
-                        style = MaterialTheme.typography.titleMedium, color = Charcoal,
+                        style = MaterialTheme.typography.titleMedium, color = tile,
                     )
                 }
             }
