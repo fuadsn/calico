@@ -236,30 +236,11 @@ private fun Home(progress: Progress, resumed: Int) {
 @Composable
 private fun SplitCard(split: Split, tile: Color, modifier: Modifier, onClick: () -> Unit) {
     val fg = onTile(tile)
-    Column(modifier.background(tile, TileShape).clickable(onClick = onClick).padding(16.dp)) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(40.dp).background(fg.copy(0.12f), CircleShape), contentAlignment = Alignment.Center) { Text(split.emoji, fontSize = 20.sp) }
-            Spacer(Modifier.weight(1f))
-            Box(Modifier.size(32.dp).background(fg, CircleShape), contentAlignment = Alignment.Center) {
-                Icon(Icons.Outlined.NorthEast, null, tint = tile, modifier = Modifier.size(16.dp))
-            }
-        }
+    Column(modifier.background(tile, TileShape).clickable(onClick = onClick).padding(18.dp)) {
+        Text(split.emoji, fontSize = 28.sp)
         Spacer(Modifier.height(14.dp))
         Text(split.title, style = MaterialTheme.typography.titleLarge, color = fg)
-        Text("${split.steps.size} exercises · ~${split.minutes} min", style = MaterialTheme.typography.labelSmall, color = fg.copy(0.65f))
-        Spacer(Modifier.height(10.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-            split.steps.take(2).forEach {
-                Text(
-                    it.exercise.label, style = MaterialTheme.typography.labelSmall, color = fg, maxLines = 1,
-                    modifier = Modifier.background(fg.copy(0.12f), Pill).padding(horizontal = 8.dp, vertical = 4.dp),
-                )
-            }
-            if (split.steps.size > 2) Text(
-                "+${split.steps.size - 2}", style = MaterialTheme.typography.labelSmall, color = fg,
-                modifier = Modifier.background(fg.copy(0.12f), Pill).padding(horizontal = 8.dp, vertical = 4.dp),
-            )
-        }
+        Text("${split.steps.size} exercises", style = MaterialTheme.typography.labelSmall, color = fg.copy(0.65f))
     }
 }
 
