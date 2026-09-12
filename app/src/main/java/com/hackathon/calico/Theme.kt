@@ -3,7 +3,7 @@ package com.hackathon.calico
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
@@ -12,26 +12,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// Palette: #584D3D stone brown, #9F956C / #CBBF7A sand, #F4E87C pale amber, #EBF38B lime cream.
-val Bg = Color(0xFF3F3728)          // screen background (deeper stone brown)
-val Card = Color(0xFF584D3D)        // surfaces
-val Charcoal = Color(0xFF6A5D4A)    // tiles, chips; also text on Snow pills
-val Slate = Color(0xFF7D6E58)       // secondary tiles
-val Accent = Color(0xFFEBF38B)      // lime cream: accent, selected, progress
-val AccentSoft = Color(0xFFCBBF7A)  // sand: fourth tile
-val OnAccent = Color(0xFF3F3728)    // text and icons placed on the accent
-val Cloud = Color(0xFFCBBF7A)       // sand for unselected nav circles
-val Snow = Color(0xFFF4E87C)        // pale amber for strong pills and bubbles
-val Ink = Color(0xFFFAF6E4)         // primary text on dark
-val Muted = Color(0xFFCBBF7A)       // secondary text on dark
-val Line = Color(0xFF6A5D4A)        // hairlines, inactive path
+// Palette: calico cat. Warm white coat, ginger patches, black patches, cream and tan in between.
+val Bg = Color(0xFFFFFBF5)          // screen background: warm white
+val Card = Color(0xFFF6EDE2)        // surfaces: cream
+val Charcoal = Color(0xFFFCE3CF)    // tiles, chips: peach; also text on Snow pills
+val Slate = Color(0xFFE9DCCB)       // secondary tiles: tan
+val Accent = Color(0xFFE8801F)      // ginger: accent, selected, progress
+val AccentSoft = Color(0xFF2B2118)  // black patch: fourth tile
+val OnAccent = Color(0xFFFFFFFF)    // text and icons placed on the accent
+val Cloud = Color(0xFFF1E7DA)       // unselected nav circles
+val Snow = Color(0xFF2B2118)        // black for strong pills and bubbles
+val PillBg = Color(0xFFFFFFFF)      // floating bars
+val Ink = Color(0xFF2B2118)         // primary text
+val Muted = Color(0xFF9A8B7A)       // secondary text
+val Line = Color(0xFFE6D9C8)        // hairlines, inactive path
 
 // Radii: cards 24, tiles 20, everything tappable is a pill.
 val CardShape = RoundedCornerShape(24.dp)
 val TileShape = RoundedCornerShape(20.dp)
 val Pill = RoundedCornerShape(50)
 
-private val Scheme = darkColorScheme(
+private val Scheme = lightColorScheme(
     primary = Accent, onPrimary = OnAccent,
     secondary = Snow, onSecondary = Bg,
     background = Bg, onBackground = Ink,
@@ -66,4 +67,4 @@ val Exercise.label get() = name.replace('_', ' ').lowercase().replaceFirstChar {
 fun tileColor(i: Int) = listOf(Charcoal, Slate, Card, AccentSoft)[i % 4]
 
 /** Text colour that reads on a given tile. */
-fun onTile(c: Color) = if (c.luminance() > 0.4f) Card else Ink
+fun onTile(c: Color) = if (c.luminance() > 0.4f) Ink else Bg

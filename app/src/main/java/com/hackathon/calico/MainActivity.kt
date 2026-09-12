@@ -65,9 +65,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -79,6 +81,7 @@ import androidx.compose.ui.unit.sp
 import java.time.LocalDate
 import java.time.format.TextStyle
 import java.util.Locale
+import kotlin.math.cos
 import kotlin.math.sin
 
 class MainActivity : ComponentActivity() {
@@ -86,7 +89,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge(statusBarStyle = SystemBarStyle.dark(0), navigationBarStyle = SystemBarStyle.dark(0))
+        enableEdgeToEdge(statusBarStyle = SystemBarStyle.light(0, 0), navigationBarStyle = SystemBarStyle.light(0, 0))
         setContent { CalicoTheme { App(resumed.intValue) } }
     }
 
@@ -307,49 +310,58 @@ private fun Overview(progress: Progress, resumed: Int) {
                     Heatmap(dates, today)
                 }
 
-                // goal left, calories right
+                // daily calorie gauge
                 Spacer(Modifier.height(12.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Column(Modifier.weight(1f).background(Charcoal, TileShape).padding(18.dp)) {
-                        Text("Goal", style = MaterialTheme.typography.titleMedium, color = Ink)
-                        Spacer(Modifier.height(6.dp))
-                        Text(LEVELS[current].title, style = MaterialTheme.typography.headlineSmall, color = Accent)
-                        Text("level ${current + 1} of ${LEVELS.size}", style = MaterialTheme.typography.labelSmall, color = Muted)
-                        Spacer(Modifier.height(14.dp))
-                        GoalBar(completed.toFloat() / LEVELS.size, "${completed * 100 / LEVELS.size}%")
-                        Spacer(Modifier.height(14.dp))
-                        Text("🔥 $streak day streak", style = MaterialTheme.typography.labelMedium, color = Ink)
-                    }
-                    Column(Modifier.weight(1f).background(Slate, TileShape).padding(18.dp)) {
-                        Text("Today", style = MaterialTheme.typography.titleMedium, color = Ink)
-                        Spacer(Modifier.height(6.dp))
-                        Text("${todayStats.reps}", style = MaterialTheme.typography.displayMedium, color = Ink)
-                        Text("reps", style = MaterialTheme.typography.labelMedium, color = Muted)
-                        Spacer(Modifier.height(10.dp))
-                        Text("${todayStats.secs / 60} min · ${todayStats.kcal} kcal", style = MaterialTheme.typography.labelMedium, color = Ink)
+                Column(Modifier.fillMaxWidth().background(Card, CardShape).padding(20.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Daily calories", style = MaterialTheme.typography.labelMedium, color = Muted)
+                    Text(
+                        if (todayStats.kcal >= KCAL_GOAL) "Goal smashed 🔥" else if (todayStats.kcal > 0) "Almost there 🔥" else "Let's get moving 🐈",
+                        style = MaterialTheme.typography.headlineSmall, color = Ink,
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Gauge(todayStats.kcal, KCAL_GOAL)
+                    Spacer(Modifier.height(12.dp))
+                    Row(
+                        Modifier.background(Charcoal, Pill).padding(horizontal = 16.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("👍", fontSize = 16.sp)
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            if (todayStats.kcal >= KCAL_GOAL) "${todayStats.kcal} kcal burned today"
+                            else "${KCAL_GOAL - todayStats.kcal} kcal more to finish it",
+                            style = MaterialTheme.typography.labelMedium, color = Ink,
+                        )
                     }
                 }
 
-                // calories: legend left, donut right
-                Spacer(Modifier.height(12.dp))
-                Row(Modifier.fillMaxWidth().background(Card, CardShape).padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Legend(Muted, "$KCAL_GOAL Kcal", "Target")
-                        Legend(Accent, "${todayStats.kcal} Kcal", "Burned")
-                        Legend(Snow, "${maxOf(0, KCAL_GOAL - todayStats.kcal)} Kcal", "Remaining")
-                    }
-                    Donut(todayStats.kcal, KCAL_GOAL)
-                }
-
-                // this week
-                Spacer(Modifier.height(12.dp))
-                Row(Modifier.fillMaxWidth().background(Card, TileShape).padding(18.dp)) {
-                    Stat("${week.count { it.kcal > 0 || it.reps > 0 }}", "workouts", Modifier.weight(1f))
-                    Stat("${week.sumOf { it.reps }}", "reps", Modifier.weight(1f))
-                    Stat("${week.sumOf { it.secs } / 60}", "minutes", Modifier.weight(1f))
-                    Stat("${week.sumOf { it.kcal }}", "kcal", Modifier.weight(1f))
+                // today stats: pastel tiles with mini charts of the last 7 days
+                SectionTitle("Today Stats")
+                val reps = week.reversed().map { it.reps.toFloat() }
+                val kcal = week.reversed().map { it.kcal.toFloat() }
+                val mins = week.reversed().map { it.secs / 60f }
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    StatTile("🏃", "Reps", "${todayStats.reps}", "reps", Charcoal, Modifier.weight(1f)) { Sparkline(reps, Accent) }
+                    StatTile("🔥", "Calories", "${todayStats.kcal}", "kcal", Slate, Modifier.weight(1f)) { Bars(kcal, Accent) }
+                    StatTile("⏱", "Time", "${todayStats.secs / 60}", "min", AccentSoft, Modifier.weight(1f)) { Bars(mins, Bg) }
                 }
                 Text("last 7 days", style = MaterialTheme.typography.labelSmall, color = Muted, modifier = Modifier.padding(top = 6.dp, start = 4.dp))
+
+                // goal: one wide card
+                Spacer(Modifier.height(12.dp))
+                Row(Modifier.fillMaxWidth().background(Accent, CardShape).padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Goal", style = MaterialTheme.typography.labelMedium, color = OnAccent.copy(0.8f))
+                        Text(LEVELS[current].title, style = MaterialTheme.typography.headlineSmall, color = OnAccent)
+                        Text("level ${current + 1} of ${LEVELS.size} · 🔥 $streak day streak", style = MaterialTheme.typography.labelSmall, color = OnAccent.copy(0.8f))
+                        Spacer(Modifier.height(12.dp))
+                        GoalBar(completed.toFloat() / LEVELS.size, "${completed * 100 / LEVELS.size}%")
+                    }
+                    Spacer(Modifier.width(16.dp))
+                    Box(Modifier.size(64.dp).background(Snow, CircleShape), contentAlignment = Alignment.Center) {
+                        Text("${current + 1}", style = MaterialTheme.typography.headlineLarge, color = Charcoal)
+                    }
+                }
 
                 SectionTitle("Your journey")
             }
@@ -399,25 +411,88 @@ private fun Heatmap(dates: Set<LocalDate>, today: LocalDate) {
     }
 }
 
+/** Half-ring gauge: progress in accent, the rest a hatched track, percentage in the middle. */
 @Composable
-private fun Legend(color: Color, value: String, label: String) = Row(verticalAlignment = Alignment.Top) {
-    Box(Modifier.padding(top = 7.dp).size(10.dp).background(color, CircleShape))
-    Spacer(Modifier.width(12.dp))
-    Column {
-        Text(value, style = MaterialTheme.typography.titleMedium, color = Ink)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = Muted)
+private fun Gauge(done: Int, goal: Int) {
+    val target = (done.toFloat() / goal).coerceIn(0f, 1f)
+    val f by animateFloatAsState(target, spring(stiffness = Spring.StiffnessLow), label = "gauge")
+    Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.BottomCenter) {
+        Canvas(Modifier.size(220.dp, 120.dp)) {
+            val s = 30.dp.toPx(); val inset = s / 2
+            val arc = Size(size.width - s, size.width - s)
+            val off = Offset(inset, inset + 6.dp.toPx())
+            // hatched track: thin diagonal ticks along the arc
+            drawArc(Slate, 180f, 180f, false, off, arc, style = Stroke(s))
+            val cx = size.width / 2; val cy = off.y + arc.height / 2; val r = arc.width / 2
+            for (i in 0..36) {
+                val a = Math.toRadians(180.0 + 5.0 * i)
+                val p1 = Offset(cx + (r - inset + 4) * cos(a).toFloat(), cy + (r - inset + 4) * sin(a).toFloat())
+                val p2 = Offset(cx + (r + inset - 4) * cos(a).toFloat(), cy + (r + inset - 4) * sin(a).toFloat())
+                drawLine(Muted.copy(0.35f), p1, p2, 2.dp.toPx())
+            }
+            drawArc(Accent, 180f, 180f * f, false, off, arc, style = Stroke(s, cap = StrokeCap.Butt))
+        }
+        Column(Modifier.padding(bottom = 2.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text("${(target * 100).toInt()}", style = MaterialTheme.typography.displayMedium, color = Ink)
+                Text("%", style = MaterialTheme.typography.titleMedium, color = Ink, modifier = Modifier.padding(bottom = 8.dp))
+            }
+            Text("Progress", style = MaterialTheme.typography.labelSmall, color = Muted)
+        }
     }
 }
 
-/** Calorie donut: burned segment in accent, the remainder of the goal in amber; sweeps in on show. */
+/** Pastel tile: emoji chip, mini chart, big number. */
 @Composable
-private fun Donut(done: Int, goal: Int) {
-    val f by animateFloatAsState((done.toFloat() / goal).coerceIn(0f, 1f), spring(stiffness = Spring.StiffnessLow), label = "donut")
-    Canvas(Modifier.size(130.dp)) {
-        val s = 26.dp.toPx(); val inset = s / 2; val arc = Size(size.width - s, size.height - s)
-        val gap = 6f
-        if (f < 1f) drawArc(Snow, -90f + 360f * f + gap / 2, 360f * (1 - f) - gap, false, Offset(inset, inset), arc, style = Stroke(s, cap = StrokeCap.Round))
-        if (f > 0f) drawArc(Accent, -90f + gap / 2, 360f * f - gap, false, Offset(inset, inset), arc, style = Stroke(s, cap = StrokeCap.Round))
+private fun StatTile(emoji: String, label: String, value: String, unit: String, tile: Color, modifier: Modifier, chart: @Composable () -> Unit) {
+    val fg = onTile(tile)
+    Column(modifier.background(tile, TileShape).padding(12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(Modifier.size(22.dp).background(PillBg.copy(if (fg == Ink) 0.7f else 0.15f), CircleShape), contentAlignment = Alignment.Center) { Text(emoji, fontSize = 11.sp) }
+            Spacer(Modifier.width(6.dp))
+            Text(label, style = MaterialTheme.typography.labelSmall, color = fg)
+        }
+        Spacer(Modifier.height(10.dp))
+        Box(Modifier.fillMaxWidth().height(48.dp)) { chart() }
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.Bottom) {
+            Text(value, style = MaterialTheme.typography.headlineSmall, color = fg)
+            Spacer(Modifier.width(4.dp))
+            Text(unit, style = MaterialTheme.typography.labelSmall, color = fg.copy(0.7f), modifier = Modifier.padding(bottom = 3.dp))
+        }
+    }
+}
+
+/** Smooth line through the values with a soft fill under it. */
+@Composable
+private fun Sparkline(values: List<Float>, color: Color) {
+    val max = (values.maxOrNull() ?: 1f).coerceAtLeast(1f)
+    Canvas(Modifier.fillMaxSize()) {
+        val n = values.size; if (n < 2) return@Canvas
+        val pts = values.mapIndexed { i, v -> Offset(size.width * i / (n - 1), size.height * (1 - v / max * 0.9f) - 2.dp.toPx()) }
+        val line = Path().apply {
+            moveTo(pts[0].x, pts[0].y)
+            for (i in 1 until n) {
+                val p = pts[i - 1]; val q = pts[i]; val mx = (p.x + q.x) / 2
+                cubicTo(mx, p.y, mx, q.y, q.x, q.y)
+            }
+        }
+        val fill = Path().apply { addPath(line); lineTo(size.width, size.height); lineTo(0f, size.height); close() }
+        drawPath(fill, color.copy(0.25f))
+        drawPath(line, color, style = Stroke(3.dp.toPx(), cap = StrokeCap.Round))
+    }
+}
+
+/** Rounded bars, one per value. */
+@Composable
+private fun Bars(values: List<Float>, color: Color) {
+    val max = (values.maxOrNull() ?: 1f).coerceAtLeast(1f)
+    Canvas(Modifier.fillMaxSize()) {
+        val n = values.size; val gap = 4.dp.toPx(); val w = (size.width - gap * (n - 1)) / n
+        values.forEachIndexed { i, v ->
+            val h = (size.height * v / max).coerceAtLeast(4.dp.toPx())
+            drawRoundRect(color.copy(if (i == n - 1) 1f else 0.45f), Offset(i * (w + gap), size.height - h), Size(w, h), CornerRadius(w / 2))
+        }
     }
 }
 

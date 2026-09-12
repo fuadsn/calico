@@ -65,7 +65,7 @@ fun BumpBar(items: List<Pair<ImageVector, String>>, selected: Int, modifier: Mod
                 for (i in 0..40) add(wd - r - (wd - 2 * r) * i / 40f, bot, 0f, 1f)
                 for (i in 1..24) { val a = Math.toRadians(90.0 + 180.0 * i / 24); val nx = cos(a).toFloat(); val ny = sin(a).toFloat(); add(r + r * nx, cy + r * ny, nx, ny) }
                 p.close()
-                drawPath(p, Ink)
+                drawPath(p, PillBg)
             }
             .padding(horizontal = BUMP, vertical = BUMP + 8.dp),
         horizontalArrangement = Arrangement.spacedBy(GAP),
