@@ -93,7 +93,7 @@ class PoseRetargeter(val model: GltfModel) {
             globals[i] = M4.multiply(parentGlobal, M4.trs(node.translation, local, node.scale))
         }
 
-        if (dropToGround) shiftToGround()
+        if (dropToGround) ground()
     }
 
     /** Uniform scale that makes the model [metres] tall in its rest pose. */
@@ -112,7 +112,7 @@ class PoseRetargeter(val model: GltfModel) {
     private val groundNodes: IntArray =
         model.skins.firstOrNull()?.joints ?: IntArray(model.nodes.size) { it }
 
-    private fun shiftToGround() {
+    fun ground() {
         if (groundNodes.isEmpty()) return
         val lowest = groundNodes.minOf { globals[it][13] }
         for (m in globals) m[13] -= lowest

@@ -50,6 +50,7 @@ class ScanActivity : Activity(), GLSurfaceView.Renderer {
     private lateinit var avatarRenderer: PoseFigureRenderer
     private val depthSurfaces = DepthSurfaces()
     private var figure: SkinnedFigure? = null
+    private val interaction = FigureInteraction()
 
     private val viewMatrix = FloatArray(16)
     private val projectionMatrix = FloatArray(16)
@@ -90,6 +91,7 @@ class ScanActivity : Activity(), GLSurfaceView.Renderer {
         surfaceView.setEGLConfigChooser(8, 8, 8, 8, 16, 0)
         surfaceView.setRenderer(this)
         surfaceView.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
+        interaction.attach(surfaceView)
 
         nextButton.setOnClickListener { goToWorkout() }
         skipButton.setOnClickListener { goToWorkout() }
@@ -186,6 +188,7 @@ class ScanActivity : Activity(), GLSurfaceView.Renderer {
     override fun onPause() {
         super.onPause()
         surfaceView.onPause()
+        interaction.suspend()
         RoomSession.release(this)
         session = null
     }
@@ -238,6 +241,7 @@ class ScanActivity : Activity(), GLSurfaceView.Renderer {
             current.update()
         } catch (e: CameraNotAvailableException) {
             Log.e(TAG, "Lost camera during update", e)
+            interaction.suspend()
             return
         }
 
@@ -245,6 +249,7 @@ class ScanActivity : Activity(), GLSurfaceView.Renderer {
 
         val camera = frame.camera
         if (camera.trackingState != TrackingState.TRACKING) {
+            interaction.suspend()
             resetSpot()
             postStatus(getString(ArFloor.trackingHint(camera.trackingFailureReason)))
             return
@@ -275,6 +280,7 @@ class ScanActivity : Activity(), GLSurfaceView.Renderer {
 
         val best = rated.firstOrNull { it.isBest }
         if (best == null) {
+            interaction.suspend()
             // Require a fresh stability check after the candidate disappears.
             resetSpot()
             if (depthPatch != null) {
@@ -292,9 +298,13 @@ class ScanActivity : Activity(), GLSurfaceView.Renderer {
 
         best.plane.centerPose.toMatrix(bestPlaneMatrix, 0)
         val seconds = (SystemClock.uptimeMillis() - startedAtMs) / 1000f
+        interaction.advance(seconds)
+        interaction.transform(bestPlaneMatrix)
         val rigged = figure?.takeIf { it.isUsable }
         if (rigged != null) rigged.draw(viewProjectionMatrix, bestPlaneMatrix, seconds)
         else avatarRenderer.draw(viewProjectionMatrix, bestPlaneMatrix, seconds)
+        interaction.bounds(viewProjectionMatrix, bestPlaneMatrix, rigged?.bounds ?: avatarRenderer.bounds,
+            viewportWidth, viewportHeight)
 
         // Require the spot to hold still for a moment so a flickering early plane
         // does not unlock the button and then vanish.
@@ -309,7 +319,7 @@ class ScanActivity : Activity(), GLSurfaceView.Renderer {
             when (best.zone.rating) {
                 ZoneRating.AMPLE -> getString(R.string.scan_zone_ample, best.zone.areaM2)
                 else -> getString(R.string.scan_zone_standing, best.zone.areaM2)
-            }
+            } + "\n" + getString(R.string.figure_interaction)
         )
     }
 

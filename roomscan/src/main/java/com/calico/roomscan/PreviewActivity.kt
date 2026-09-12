@@ -12,7 +12,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.SystemClock
 import android.util.Log
-import android.view.MotionEvent
 import android.view.View
 import android.view.WindowInsets
 import android.widget.Button
@@ -66,14 +65,19 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
     private val projectionMatrix = FloatArray(16)
     private val viewProjectionMatrix = FloatArray(16)
     private val standMatrix = FloatArray(16)
+    private val supportProjection = FloatArray(16)
+    private val supportRotation = FloatArray(16)
     private val projectedCenter = FloatArray(4)
     private val worldCenter = floatArrayOf(0f, 0f, 0f, 1f)
 
     private var session: Session? = null
     private var installRequested = false
     private var anchor: Anchor? = null
+    private var bodySupport: ArBodySupport? = null
+    private var supportLostAt = 0L
     private val pendingTap = java.util.concurrent.atomic.AtomicReference<FloatArray?>()
     private var placementYaw = 0f
+    private val interaction = FigureInteraction()
 
     private var viewportWidth = 0
     private var viewportHeight = 0
@@ -119,10 +123,7 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         surfaceView.setEGLConfigChooser(8, 8, 8, 8, 16, 0)
         surfaceView.setRenderer(this)
         surfaceView.renderMode = GLSurfaceView.RENDERMODE_CONTINUOUSLY
-        surfaceView.setOnTouchListener { _, event ->
-            if (event.action == MotionEvent.ACTION_UP) pendingTap.set(floatArrayOf(event.x, event.y))
-            true
-        }
+        interaction.attach(surfaceView) { x, y -> pendingTap.set(floatArrayOf(x, y)) }
 
         findViewById<Button>(R.id.back).setOnClickListener { finish() }
         findViewById<Button>(R.id.start).setOnClickListener { startWorkout() }
@@ -205,8 +206,13 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
     override fun onPause() {
         super.onPause()
         surfaceView.onPause()
+        interaction.suspend()
+        pendingTap.set(null)
         anchor?.detach()
         anchor = null
+        bodySupport?.detach()
+        bodySupport = null
+        supportLostAt = 0L
         RoomSession.release(this)
         session = null
         arMode = false
@@ -246,9 +252,11 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
     override fun onDrawFrame(gl: GL10?) {
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
         val seconds = (SystemClock.uptimeMillis() - startedAtMs) / 1000f
+        interaction.advance(seconds)
         if (arMode) drawAugmented(seconds) else {
+            pendingTap.set(null)
             drawPlain(seconds)
-            postHint(getString(R.string.preview_no_ar))
+            postHint(getString(R.string.preview_no_ar) + "\n" + getString(R.string.figure_interaction))
         }
     }
 
@@ -264,6 +272,7 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
             current.update()
         } catch (e: CameraNotAvailableException) {
             Log.e(TAG, "Lost camera during update", e)
+            interaction.suspend()
             drawPlain(seconds)
             postHint(getString(R.string.scan_camera_unavailable))
             return
@@ -272,6 +281,8 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
 
         val camera = frame.camera
         if (camera.trackingState != TrackingState.TRACKING) {
+            interaction.suspend()
+            pendingTap.set(null)
             drawDemoInset(seconds)
             postHint(getString(ArFloor.trackingHint(camera.trackingFailureReason)))
             return
@@ -281,7 +292,8 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         Matrix.multiplyMM(viewProjectionMatrix, 0, projectionMatrix, 0, viewMatrix, 0)
 
         val surfaces = ArFloor.surfaces(current)
-        val floors = surfaces.filter { it.type == Plane.Type.HORIZONTAL_UPWARD_FACING }
+        val horizontal = surfaces.filter { it.type == Plane.Type.HORIZONTAL_UPWARD_FACING }
+        val floors = ArFloor.candidates(horizontal, camera.pose.ty())
         frame.acquirePointCloud().use { pointCloudRenderer.update(it) }
         pointCloudRenderer.draw(viewProjectionMatrix)
         planeRenderer.draw(surfaces.map { RatedPlane(it, ArFloor.measure(it), false) },
@@ -290,9 +302,14 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
             planeRenderer.drawDepth(it, viewProjectionMatrix)
         }
 
+        if (ExerciseMotion.needsRaisedSupport(exercise)) {
+            drawSupported(frame, horizontal, seconds)
+            return
+        }
         place(frame, floors)
         val stand = anchor?.takeIf { it.trackingState == TrackingState.TRACKING }
         if (stand == null) {
+            interaction.suspend()
             drawDemoInset(seconds)
             postHint(getString(R.string.preview_pending))
             return
@@ -303,18 +320,72 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         Matrix.setIdentityM(standMatrix, 0)
         Matrix.translateM(standMatrix, 0, position[0], position[1], position[2])
         Matrix.rotateM(standMatrix, 0, placementYaw, 0f, 1f, 0f)
+        interaction.transform(standMatrix)
         drawFigure(seconds)
+        interaction.bounds(viewProjectionMatrix, standMatrix, figure?.bounds ?: fallbackAvatar.bounds,
+            viewportWidth, viewportHeight)
         worldCenter[0] = position[0]
-        worldCenter[1] = position[1] + 0.7f
+        worldCenter[1] = position[1] + interaction.body.height + 0.7f
         worldCenter[2] = position[2]
         Matrix.multiplyMV(projectedCenter, 0, viewProjectionMatrix, 0, worldCenter, 0)
         val w = projectedCenter[3]
         if (w <= 0f || kotlin.math.abs(projectedCenter[0]) > w || kotlin.math.abs(projectedCenter[1]) > w) {
+            interaction.hide()
             drawDemoInset(seconds)
             postHint(getString(R.string.preview_offscreen))
             return
         }
-        postHint(getString(R.string.preview_tap))
+        postHint(getString(R.string.preview_tap) + "\n" + getString(R.string.figure_interaction))
+    }
+
+    private fun drawSupported(frame: Frame, planes: List<Plane>, seconds: Float) {
+        val tap = pendingTap.getAndSet(null)
+        if (bodySupport?.stopped == true) { bodySupport?.detach(); bodySupport = null }
+        if (tap != null || bodySupport == null) {
+            if (tap != null || frame.timestamp - lastPlacementAttempt >= 500_000_000L) {
+                lastPlacementAttempt = frame.timestamp
+                val preferred = tap?.let { point -> frame.hitTest(point[0], point[1]).firstOrNull {
+                    it.trackable in planes && (it.trackable as? Plane)?.isPoseInPolygon(it.hitPose) == true
+                }?.hitPose?.translation }
+                val replacement = try {
+                    ArBodySupport.find(exercise, planes, frame.camera.pose.translation, preferred)
+                } catch (e: RuntimeException) {
+                    Log.w(TAG, "Support planes changed while placing", e); null
+                }
+                if (replacement != null) {
+                    bodySupport?.detach(); bodySupport = replacement; interaction.reset()
+                    supportLostAt = 0L
+                }
+            }
+        }
+        val placed = bodySupport?.placement()
+        if (placed == null) {
+            if (bodySupport != null) {
+                if (supportLostAt == 0L) supportLostAt = frame.timestamp
+                if (frame.timestamp - supportLostAt > 1_000_000_000L) {
+                    bodySupport?.detach(); bodySupport = null; supportLostAt = 0L
+                }
+            }
+            interaction.suspend()
+            drawDemoInset(seconds)
+            postHint(getString(if (exercise == "PULLUP") R.string.preview_find_overhead else R.string.preview_find_support))
+            return
+        }
+        supportLostAt = 0L
+        Matrix.setIdentityM(standMatrix, 0)
+        Matrix.translateM(standMatrix, 0, placed.position[0], placed.position[1] + interaction.body.height, placed.position[2])
+        // Heading follows the two physical supports. A lifted demo returns to those contacts.
+        Matrix.rotateM(standMatrix, 0, placed.yaw, 0f, 1f, 0f)
+        drawFigure(seconds, placed.support)
+        interaction.bounds(viewProjectionMatrix, standMatrix, figure?.bounds ?: fallbackAvatar.bounds,
+            viewportWidth, viewportHeight)
+        if (!interaction.isVisible) {
+            interaction.hide()
+            drawDemoInset(seconds)
+            postHint(getString(R.string.preview_offscreen))
+            return
+        }
+        postHint(getString(if (exercise == "PULLUP") R.string.preview_overhead_ready else R.string.preview_support_ready))
     }
 
     /** Reuse the scan location, otherwise try several visible floor rays. Never invent a floor. */
@@ -325,8 +396,13 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         }
         val tap = pendingTap.getAndSet(null)
         if (anchor == null && tap == null) {
-            RoomSession.selectedAnchor?.takeIf { it.trackingState == TrackingState.TRACKING }?.let {
+            RoomSession.selectedAnchor?.takeIf { saved ->
+                saved.trackingState == TrackingState.TRACKING && floors.any { plane ->
+                    kotlin.math.abs(plane.centerPose.ty() - saved.pose.ty()) < 0.15f && plane.isPoseInPolygon(saved.pose)
+                }
+            }?.let {
                 anchor = session?.createAnchor(it.pose)
+                interaction.reset()
                 placementYaw = Math.toDegrees(atan2(frame.camera.pose.tx() - it.pose.tx(),
                     frame.camera.pose.tz() - it.pose.tz()).toDouble()).toFloat()
                 return
@@ -352,6 +428,7 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
                 val replacement = hit.createAnchor()
                 anchor?.detach()
                 anchor = replacement
+                interaction.reset()
                 placementYaw = Math.toDegrees(atan2(
                     frame.camera.pose.tx() - hit.hitPose.tx(),
                     frame.camera.pose.tz() - hit.hitPose.tz()).toDouble()).toFloat()
@@ -371,15 +448,16 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         GLES20.glScissor(x, y, width, height)
         GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT or GLES20.GL_DEPTH_BUFFER_BIT)
         GLES20.glViewport(x, y, width, height)
-        drawPlain(seconds, width.toFloat() / height)
+        drawPlain(seconds, width.toFloat() / height, interactive = false)
         GLES20.glViewport(0, 0, viewportWidth, viewportHeight)
         GLES20.glDisable(GLES20.GL_SCISSOR_TEST)
     }
 
     /** A plain turntable view, used when there is no AR session to put the figure in a room. */
-    private fun drawPlain(seconds: Float, aspect: Float = if (viewportHeight == 0) 1f else viewportWidth.toFloat() / viewportHeight) {
+    private fun drawPlain(seconds: Float, aspect: Float = if (viewportHeight == 0) 1f else viewportWidth.toFloat() / viewportHeight,
+        interactive: Boolean = true) {
         Matrix.perspectiveM(projectionMatrix, 0, 45f, aspect, NEAR_PLANE_M, FAR_PLANE_M)
-        val angle = seconds * ORBIT_RADIANS_PER_SEC
+        val angle = 0.35f
         val radius = ORBIT_RADIUS_M / aspect.coerceAtMost(1f).coerceAtLeast(0.2f)
         Matrix.setLookAtM(
             viewMatrix, 0,
@@ -389,13 +467,27 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         )
         Matrix.multiplyMM(viewProjectionMatrix, 0, projectionMatrix, 0, viewMatrix, 0)
         Matrix.setIdentityM(standMatrix, 0)
+        if (interactive) interaction.transform(standMatrix)
+        ExerciseMotion.support(exercise)?.let { support ->
+            // Explicit demonstration supports in the non-AR view; never presented as room geometry.
+            Matrix.setIdentityM(supportRotation, 0)
+            if (interactive) Matrix.rotateM(supportRotation, 0, interaction.yaw, 0f, 1f, 0f)
+            Matrix.multiplyMM(supportProjection, 0, viewProjectionMatrix, 0, supportRotation, 0)
+            planeRenderer.drawDepth(HorizontalPatch(0f,
+                floatArrayOf(-0.7f, -0.5f, 0.7f, -0.5f, 0.7f, 0.5f, -0.7f, 0.5f), 100), supportProjection)
+            planeRenderer.drawDepth(HorizontalPatch(support.handHeight,
+                floatArrayOf(-0.65f, support.handZ - 0.25f, 0.65f, support.handZ - 0.25f,
+                    0.65f, support.handZ + 0.25f, -0.65f, support.handZ + 0.25f), 100), supportProjection)
+        }
         drawFigure(seconds)
+        if (interactive) interaction.bounds(viewProjectionMatrix, standMatrix,
+            figure?.bounds ?: fallbackAvatar.bounds, viewportWidth, viewportHeight)
     }
 
-    private fun drawFigure(seconds: Float) {
+    private fun drawFigure(seconds: Float, support: BodySupport? = ExerciseMotion.support(exercise)) {
         val rigged = figure
-        if (rigged != null) rigged.draw(viewProjectionMatrix, standMatrix, seconds)
-        else fallbackAvatar.draw(viewProjectionMatrix, standMatrix, seconds)
+        if (rigged != null) rigged.draw(viewProjectionMatrix, standMatrix, seconds, support)
+        else fallbackAvatar.draw(viewProjectionMatrix, standMatrix, seconds, support)
     }
 
     private fun postHint(text: String) {
@@ -426,6 +518,5 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         const val ORBIT_RADIUS_M = 3.4f
         const val ORBIT_HEIGHT_M = 1.4f
         const val LOOK_AT_HEIGHT_M = 0.85f
-        const val ORBIT_RADIANS_PER_SEC = 0.25f
     }
 }

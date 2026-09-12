@@ -37,13 +37,18 @@ class RenderSmokeTest {
             Matrix.perspectiveM(projection, 0, 45f, 1f, 0.1f, 100f)
             Matrix.setLookAtM(view, 0, 2.2f, 1.6f, 3.2f, 0f, 0.7f, 0f, 0f, 1f, 0f)
             Matrix.multiplyMM(vp, 0, projection, 0, view, 0)
-            for (exercise in listOf("SQUAT", "PUSHUP", "JUMPING_JACK", "PULLUP", "HIGH_KNEES")) {
+            for (exercise in listOf("SQUAT", "PUSHUP", "INCLINE_PUSHUP", "DIP", "PLANK", "SITUP", "LEG_RAISE", "LUNGE", "JUMPING_JACK", "PULLUP", "HIGH_KNEES")) {
                 val rig = SkinnedFigure.read(assets, DemoFigure.modelAssets.first(), exercise)
                 rig.createOnGlThread()
                 assertTrue(rig.isUsable)
                 clear()
                 rig.draw(vp, M4.identity(), 0.75f)
                 verifyPixels("rig-$exercise")
+                if (exercise == "JUMPING_JACK") for ((phase, time) in listOf("land" to 0f,"air" to 0.275f,"open" to 0.55f)) {
+                    clear()
+                    rig.draw(vp,M4.identity(),time)
+                    verifyPixels("jack-$phase")
+                }
                 val fallback = PoseFigureRenderer(assets, exercise)
                 fallback.createOnGlThread()
                 clear()

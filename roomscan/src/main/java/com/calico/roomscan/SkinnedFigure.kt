@@ -45,6 +45,7 @@ class SkinnedFigure(private val model: GltfModel, private val clip: PoseClip) {
     private val mvp = FloatArray(16)
 
     val isUsable get() = retargeter.isUsable && drawables.isNotEmpty()
+    val bounds = FloatArray(6)
 
     fun createOnGlThread() {
         drawables.clear()
@@ -83,16 +84,23 @@ class SkinnedFigure(private val model: GltfModel, private val clip: PoseClip) {
      * @param anchor where the figure stands, Y up, usually a detected plane.
      * @param seconds playback position in the clip.
      */
-    fun draw(viewProjection: FloatArray, anchor: FloatArray, seconds: Float) {
+    fun draw(viewProjection: FloatArray, anchor: FloatArray, seconds: Float,
+        support: BodySupport? = ExerciseMotion.support(clip.exercise)) {
         if (drawables.isEmpty()) return
         clip.sample(seconds, landmarks)
         retargeter.pose(landmarks, dropToGround = !contacts.enabled, handGrip = when (clip.exercise) {
             "PULLUP" -> 0.9f
             "HIGH_KNEES" -> 0.55f
-            "PUSHUP", "PIKE_PUSHUP", "MOUNTAIN_CLIMBER", "DIP" -> 0f
+            "PUSHUP", "INCLINE_PUSHUP", "PIKE_PUSHUP", "MOUNTAIN_CLIMBER", "DIP", "PLANK" -> 0f
             else -> 0.22f
         })
-        contacts.apply(retargeter, landmarks)
+        contacts.apply(retargeter, landmarks, seconds, clip.durationSeconds, support)
+        val flight = ExerciseMotion.flight(clip.exercise, seconds, clip.durationSeconds) / fitScale
+        for (m in retargeter.globals) m[13] += flight
+        for (a in 0..2) {
+            bounds[a] = retargeter.globals.minOf { it[12 + a] } * fitScale - 0.08f
+            bounds[a + 3] = retargeter.globals.maxOf { it[12 + a] } * fitScale + 0.08f
+        }
         palette.fill(retargeter, jointMatrices)
 
         M4.multiplyInto(anchor, scaleMatrix, placement)
@@ -232,6 +240,9 @@ class SkinnedFigure(private val model: GltfModel, private val clip: PoseClip) {
             val clip = MotionAssets.read(assets, exercise)
             return SkinnedFigure(gltf, clip).also {
                 require(it.retargeter.isUsable) { "Model has no compatible humanoid rig: $modelPath" }
+                require(!ExerciseMotion.needsRaisedSupport(exercise) || it.contacts.enabled) {
+                    "Model cannot constrain the required surface contacts: $modelPath"
+                }
             }
         }
 

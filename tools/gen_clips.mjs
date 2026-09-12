@@ -169,7 +169,7 @@ const arm = (o) => ({ ...ARM_REST, ...o });
 const leg = (o) => ({ ...LEG_REST, ...o });
 
 /** A pose with both arms and both legs the same. */
-const symmetric = (o, a, l) => ({ torso: 0, yaw: 0, pitch: 0, ...o, armL: a, armR: a, legL: l, legR: l });
+const symmetric = (o, a, l) => ({ torso: 0, yaw: 0, pitch: 0, ...o, armL: { ...a }, armR: { ...a }, legL: { ...l }, legR: { ...l } });
 
 /**
  * Every exercise is two poses, `top` and `bottom`, that the cycle eases between.
@@ -190,8 +190,8 @@ const EXERCISES = {
     bottom: symmetric({ pitch: 128 }, arm({ abduct: 40, flex: 138, elbow: 95 }), leg({ flex: 72, ankle: 35 })),
   },
   DIP: {
-    top: symmetric({}, arm({ abduct: 9, flex: -18, elbow: 5 }), leg({ flex: 22, knee: 38 })),
-    bottom: symmetric({}, arm({ abduct: 14, flex: -26, elbow: 95 }), leg({ flex: 22, knee: 38 })),
+    top: symmetric({}, arm({ abduct: 9, flex: -18, elbow: 5 }), leg({ flex: 60, knee: 20 })),
+    bottom: symmetric({}, arm({ abduct: 14, flex: -26, elbow: 95 }), leg({ flex: 65, knee: 25 })),
   },
   PULLUP: {
     top: symmetric({}, arm({ abduct: 158, flex: 6, elbow: 118 }), leg({ knee: 28, flex: -8 })),
@@ -206,7 +206,7 @@ const EXERCISES = {
     top: symmetric({}, arm({ flex: 8, elbow: 20 }), leg({})),
     bottom: {
       torso: 8, yaw: 0, pitch: 0,
-      armL: arm({ flex: 8, elbow: 20 }), armR: arm({ flex: 8, elbow: 20 }),
+      armL: arm({ flex: -25, elbow: 65 }), armR: arm({ flex: 48, elbow: 72 }),
       legL: leg({ flex: 58, knee: 88, ankle: 22 }),
       legR: leg({ flex: -26, knee: 92, ankle: 48 }),
     },
@@ -236,14 +236,14 @@ const EXERCISES = {
     top: symmetric({}, arm({ flex: 30, elbow: 85 }), leg({ knee: 10 })),
     bottom: {
       torso: 4, yaw: 0, pitch: 0,
-      armL: arm({ flex: -32, elbow: 85 }), armR: arm({ flex: 46, elbow: 85 }),
+      armL: arm({ flex: -44, elbow: 95 }), armR: arm({ flex: 62, elbow: 72 }),
       legL: leg({ flex: 92, knee: 88, ankle: 10 }),
       legR: leg({ flex: -6, knee: 6, ankle: 28 }),
     },
   },
   JUMPING_JACK: {
     top: symmetric({}, arm({ abduct: 10, flex: 4 }), leg({ abduct: 3 })),
-    bottom: symmetric({}, arm({ abduct: 164, flex: 4 }), leg({ abduct: 24 })),
+    bottom: symmetric({}, arm({ abduct: 176, flex: 4, elbow: 10 }), leg({ abduct: 28 })),
   },
   ARM_RAISE: {
     top: symmetric({}, arm({ flex: 6, elbow: 4 }), leg({})),
@@ -327,12 +327,24 @@ function mirror(pose) {
   return { ...pose, armL: pose.armR, armR: pose.armL, legL: pose.legR, legR: pose.legL };
 }
 
-function controlsAt(spec, t) {
+function controlsAt(spec, t, name) {
   if (spec.sweep) return spec.sweep(t);
+  if (name === "JUMPING_JACK") {
+    const half = (t * 2) % 1;
+    const progress = Math.max(0, Math.min(1, (half - 0.16) / 0.68));
+    const smooth = progress * progress * (3 - 2 * progress);
+    const pose = blend(spec.top, spec.bottom, t < 0.5 ? smooth : 1 - smooth);
+    // Flex on landing and extend on takeoff; feet change stance only during flight.
+    const compression = half < 0.16 ? Math.sin(Math.PI * half / 0.16) : 0;
+    pose.legL.knee += 16 * compression; pose.legR.knee += 16 * compression;
+    pose.legL.flex += 8 * compression; pose.legR.flex += 8 * compression;
+    return pose;
+  }
   if (spec.alternate) {
     // Two half cycles, the second one mirrored, so left and right take turns.
     const half = t < 0.5 ? t * 2 : (t - 0.5) * 2;
-    const ease = (1 - Math.cos(2 * Math.PI * half)) / 2;
+    const transition = Math.min(1, Math.min(half, 1 - half) / 0.25);
+    const ease = name === "LUNGE" ? transition * transition * (3 - 2 * transition) : (1 - Math.cos(2 * Math.PI * half)) / 2;
     const pose = blend(spec.top, spec.bottom, ease);
     return t < 0.5 ? pose : mirror(pose);
   }
@@ -344,9 +356,13 @@ function articulate(name, c, t) {
   const planted = ["SQUAT", "ARM_RAISE", "ARM_CIRCLE", "OVERHEAD_STRETCH", "CROSS_BODY_STRETCH"];
   for (const [a, l, side] of [[c.armL, c.legL, 1], [c.armR, c.legR, -1]]) {
     const phase = 2 * Math.PI * t;
-    a.wrist = 7 + 9 * Math.sin(phase - 0.5) + 0.07 * a.flex;
-    a.twist = 10 * Math.sin(phase - 0.3) * side;
-    if (["PUSHUP", "PIKE_PUSHUP", "MOUNTAIN_CLIMBER"].includes(name)) {
+    a.wrist = 7 + 13 * Math.sin(phase - 0.5) + 0.07 * a.flex;
+    a.twist = 16 * Math.sin(phase - 0.3) * side;
+    // Small elbow follow-through gives free arms an arc instead of a rigid paddle.
+    if (["JUMPING_JACK", "ARM_RAISE", "ARM_CIRCLE", "LUNGE"].includes(name)) {
+      a.elbow += 7 * (1 + Math.sin(phase - 0.45)) / 2;
+    }
+    if (["PUSHUP", "INCLINE_PUSHUP", "PIKE_PUSHUP", "MOUNTAIN_CLIMBER", "DIP"].includes(name)) {
       a.wrist = c.pitch + c.torso - a.flex - a.elbow + 90;
       a.twist = 0;
     }
@@ -368,7 +384,7 @@ function buildClip(name, spec) {
   const frames = [];
   for (let f = 0; f < FRAMES_PER_CYCLE; f++) {
     const t = f / FRAMES_PER_CYCLE;
-    const controls = controlsAt(spec, t);
+    const controls = controlsAt(spec, t, name);
     articulate(name, controls, t);
     const points = fk(controls);
     const flat = [];
@@ -399,7 +415,7 @@ for (const [name, spec] of Object.entries(EXERCISES)) {
   "fps": ${clip.fps},
   "loop": ${clip.loop},
   "space": ${JSON.stringify(clip.space)},
-  "source": "procedural_fk_v2",
+  "source": "procedural_fk_v3_contact_phases",
   "frames": [
 ${body}
   ]

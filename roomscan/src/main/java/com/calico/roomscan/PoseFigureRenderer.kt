@@ -10,11 +10,13 @@ import java.nio.ByteOrder
 class PoseFigureRenderer(assets: AssetManager, exercise: String) {
     private val clip = MotionAssets.read(assets, exercise)
     private val landmarks = FloatArray(Lm.COUNT * 3)
+    private val supportRig = LandmarkSupport(FloatArray(99).also { clip.sample(0f, it) }, exercise)
     private val vertices = ByteBuffer.allocateDirect(EDGES.size * 3 * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
     private val mvp = FloatArray(16)
     private var program = 0
     private var position = 0
     private var transform = 0
+    val bounds = FloatArray(6)
 
     fun createOnGlThread() {
         program = GlUtil.buildProgram("""
@@ -29,9 +31,17 @@ class PoseFigureRenderer(assets: AssetManager, exercise: String) {
         transform = GLES20.glGetUniformLocation(program, "u_Mvp")
     }
 
-    fun draw(viewProjection: FloatArray, placement: FloatArray, seconds: Float) {
+    fun draw(viewProjection: FloatArray, placement: FloatArray, seconds: Float,
+        support: BodySupport? = ExerciseMotion.support(clip.exercise)) {
         clip.sample(seconds, landmarks)
-        val ground = EDGES.minOf { landmarks[it * 3 + 1] }
+        if (support != null) supportRig.apply(landmarks, support)
+        val flight = ExerciseMotion.flight(clip.exercise, seconds, clip.durationSeconds)
+        val ground = (if (support == null) EDGES.minOf { landmarks[it * 3 + 1] } else 0f) - flight
+        for (a in 0..2) {
+            val offset = if (a == 1) ground else 0f
+            bounds[a] = EDGES.minOf { landmarks[it * 3 + a] } - offset - 0.08f
+            bounds[a + 3] = EDGES.maxOf { landmarks[it * 3 + a] } - offset + 0.08f
+        }
         vertices.clear()
         for (joint in EDGES) vertices.put(landmarks[joint * 3])
             .put(landmarks[joint * 3 + 1] - ground).put(landmarks[joint * 3 + 2])

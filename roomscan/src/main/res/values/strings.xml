@@ -22,6 +22,11 @@
     <string name="preview_pending">3D demo shown in the corner. Aim at the floor or tap a mapped surface to place it.</string>
     <string name="preview_offscreen">The demo is placed outside this view. Turn toward it or tap a surface to move it.</string>
     <string name="preview_tap">Tap the floor to move the demo</string>
+    <string name="figure_interaction">Drag the model up to lift, sideways to turn. Release to drop.</string>
+    <string name="preview_find_support">Scan the floor and a raised support with clear space beside it. Showing a separate demo while searching.</string>
+    <string name="preview_find_overhead">Scan the floor and an overhead hand support. The scanner detects geometry, so check that the support is suitable. Showing a separate demo.</string>
+    <string name="preview_support_ready">Feet on the floor; palms on the raised surface. Drag up to lift; release to reconnect. Tap nearby to choose another spot.</string>
+    <string name="preview_overhead_ready">Hands attached to the overhead surface; feet hang freely. Check the real support before exercising. Drag up to lift.</string>
     <string name="preview_no_ar">Showing the demo without AR</string>
     <string name="preview_back">Back</string>
     <string name="preview_start">Try it</string>

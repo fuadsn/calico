@@ -265,3 +265,71 @@ policy and detection-feedback sections above: original surface/depth visualizati
 plane eligibility, preview placement, and anchor-height behavior are back. The
 navigation flags and button styling remain. ContactRig hand/foot constraints,
 shared motion data, palm corrections, and upstream rep-counter fixes remain.
+
+### Gravity and touchscreen manipulation
+
+The scan mannequin and workout preview use `FigureInteraction` and `GravityBody`.
+Touch the model and drag up/down to lift/lower it (up to 2 metres), or sideways
+to rotate it. Release to drop it. In the workout preview, a separate tap on the
+floor still relocates the model. The full-screen non-AR preview has the same
+model gestures; the small pending-tracking inset is only a demonstration.
+
+Gravity is 9.81 m/s² with ballistic time integration and an inelastic collision
+at the existing placement height. Physics offsets are relative to the placement;
+they never change ARCore plane eligibility or create anchors for individual limbs.
+ContactRig still constrains the exercise pose inside that moving frame. This is
+a driven animated body, not per-limb rigid-body simulation or a mass-distribution
+model: it does not ragdoll, topple, or collide with furniture. The support uses
+the existing AR estimate and cannot correct an incorrectly detected floor.
+
+Gestures are touchscreen-based, not camera hand tracking. Touch input is copied
+onto the GL thread, with projected posed-joint bounds for selection. Cancellation,
+multi-touch, pause, and tracking loss release any held model. Paused time cannot
+cause a sudden large physics step. The clip data and rep counter are unchanged.
+JVM tests cover fall timing, frame-rate independence, floor collision, and grabs;
+device tests cover selection, rotation, release, cancellation, and rendering.
+
+### Exercise flight and separate supports
+
+`ExerciseMotion` supplies contact phases and ballistic flight above the placement
+plane. Jumping jacks have two hops per 1.1-second cycle, about 17 cm at the apex,
+and planted intervals at the closed/open stances. Knee compression occurs during
+landing; feet change stance during flight. High knees have short airborne
+transitions. The final rig and line fallback both receive this vertical motion;
+per-frame grounding no longer removes the hop. This is authored motion, not a
+trajectory recovered from hip-relative MediaPipe world landmarks.
+
+The generated clips are now `procedural_fk_v3_contact_phases`: larger jack arm
+arcs, reciprocal lunge/running arm swing, elbow follow-through, wrist articulation,
+and exercise-appropriate palm orientations. Holds retain small movement rather
+than exaggerated flailing. The recorded squat and its provenance remain intact.
+The existing model contains general walking/running/jumping animation tracks, but
+no identified captured jumping-jack/workout set has been supplied for exact copying.
+
+Contact profiles cover planted standing exercises, timed jack/lunge contacts,
+alternating high-knee/climber feet, pushup/pike/plank supports, seated pelvis/feet,
+and raised-support exercises. Incline pushups use floor feet and raised palms;
+dips use floor feet and palms behind the body on a bench-height patch. Pullups
+use overhead hands with freely hanging feet. Leg raises keep a pelvis pivot.
+The solver preserves bone lengths and adapts the body orientation to support height.
+
+`SupportPlanner` checks convex world-space polygons for both contact pairs, rejects
+insufficient hand/foot clearance, and keeps incline/dip feet outside the upper
+surface footprint. Supported height differences are 25–95 cm for incline pushups,
+35–70 cm for bench dips, and 1.8–2.4 m for overhead supports. These are animation
+reach limits, not recommendations or evidence that furniture is safe to load.
+ARCore plane detection cannot identify a load-bearing bench or a pullup bar.
+
+`ArBodySupport` attaches one anchor to each supporting plane, sharing it between
+the corresponding limbs. It follows merged planes and rechecks coverage as the
+map changes. If a pair becomes unavailable, the UI shows the separate inset demo
+and retries after a short interval. A lift temporarily raises the figure; release
+returns it to the support pair. Its heading follows the supports while attached.
+Single-plane previews use the scanner's existing lowest-plane candidate rule;
+scan surface visualization is unchanged. Non-AR raised-support demos show explicit
+illustrative support patches. Room matching still needs physical-device validation.
+
+Regression tests check final solved torso travel, elbow excursion, jack foot
+clearance, stationary leg-raise pelvis, plank elbow height, contact residuals,
+bone lengths, and rejection of missing/tiny/unreachable surface pairs. All 17
+generated clips must still pass `node tools/check_clips.mjs`.
