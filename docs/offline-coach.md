@@ -1,6 +1,6 @@
 # Offline coach
 
-Current voice routing and the Qwen3-4B upgrade are documented in [Voice and model update](voice-model-update.md). The 1.7B configuration and timings below are historical and remain relevant to the fallback model.
+Current voice routing and the model itself are documented in [Voice and model update](voice-model-update.md). Timings recorded before the NPU move are marked historical where they appear below.
 
 Open **Offline coach → Open coach** on Home. Typed questions run locally after
 the model is installed. **Explain my cues** uses the latest saved exercise's
@@ -12,31 +12,54 @@ from the same `Exercise` enum used by the counter.
 ## Runtime and setup
 
 - Kotlin/Compose UI, one background inference worker, JNI and llama.cpp.
-- Qwen3-1.7B Q4_K_M, 1,282,439,264 bytes, Apache 2.0.
-- Model revision `daeb8e2d528a760970442092f6bf1e55c3b659eb` from
-  <https://huggingface.co/ggml-org/Qwen3-1.7B-GGUF>.
-- SHA-256 `d2387ca2dbfee2ffabce7120d3770dadca0b293052bc2f0e138fdc940d9bc7b5`.
-- llama.cpp revision `3057bb66c86c46d5781e50e85462a760ba7d1feb`, pinned archive
-  and checksum in `app/src/main/cpp/CMakeLists.txt`; KleidiAI CPU kernels enabled.
-- ARM64 CPU inference, four threads, 2,048-token context, 192-token response cap,
-  Qwen non-thinking chat template and deterministic greedy decoding. No runtime
-  HTTP server or cloud API.
+- Qwen3-4B-Instruct-2507 Q4_0, 2,375,773,280 bytes, Apache 2.0. Details and checksum
+  in [Voice and model update](voice-model-update.md).
+- llama.cpp revision `3057bb66c86c46d5781e50e85462a760ba7d1feb`, pinned archive and
+  checksum in `tools/build-llama-snapdragon.py`.
+- **Hexagon NPU inference.** Every layer is offloaded to `HTP0`; there is no CPU
+  fallback, and a phone without the NPU reports that the coach cannot run. 2,048-token
+  context, 512-token batch, flash attention, 192-token response cap, Qwen non-thinking
+  chat template and deterministic greedy decoding. No runtime HTTP server or cloud API.
+- The loaded model is held for the whole process by `CoachEngine`, not per screen, so
+  closing the coach or the workout orb does not pay the several-second load again. It
+  holds about 2.5 GB while loaded and is released on `TRIM_MEMORY_RUNNING_LOW` and above.
 
-The setup screen downloads the pinned model over HTTPS or imports the same GGUF
-through Android's file picker. It checks length and SHA-256 before replacing the
-private model file. Keep the screen open during setup. Stopped downloads restart
-from the beginning. Use **Model setup** to replace a damaged model. At least
-1.5 GB free storage is recommended for initial setup (replacement needs space
-for both files). The model is excluded from Android backup.
+### Measured on the iQOO I2501 (SM8850, Hexagon v81), 2026-09-13
+
+Qwen3-4B-Instruct-2507, `llama-bench`, tokens per second:
+
+| Backend | Quant | pp512 | tg64 |
+| --- | --- | ---: | ---: |
+| CPU, six threads (previous runtime) | Q4_K_M | 42 | 15 |
+| CPU, six threads | Q4_0 | 58 | 18 |
+| Adreno 840, OpenCL | Q4_0 | 292 | 22 |
+| Hexagon NPU, batch 512 | Q4_0 | 1484 | 17-19 |
+
+A real 419-token coach prompt on the NPU took 0.34 s to prefill. These are single
+observations on one phone, not latency guarantees.
+
+The model is the user's file, not the app's. **Download offline coach** asks where to
+save it (a Storage Access Framework document, typically in Downloads) and streams the
+pinned GGUF there; **Locate model file** references an existing copy in place without
+copying it. Either way Calico keeps only a persisted URI grant, so uninstalling,
+reinstalling or clearing the app's data leaves the 2.4 GB file untouched. After a
+reinstall the grant is gone, so the setup card comes back and one **Locate model file**
+tap restores the coach. Length and SHA-256 are checked once per file and the result is
+remembered until size or modification time changes. Linking a document deletes any
+older copy under the app's private storage. Keep the screen open during setup; a
+stopped download is deleted and restarts from the beginning.
+
+llama.cpp opens the document through its descriptor as `fd:N`. Scoped storage refuses
+to reopen a document by path, even through `/proc/self/fd`, so
+`tools/build-llama-snapdragon.py` patches `ggml_fopen` in the pinned source to adopt
+an already-open descriptor. Every model open, the GGUF header and the weights, goes
+through that one function.
 
 Chat and bounded per-workout history are saved privately and excluded from backup.
 Clear removes chat; Forget removes workout history and chat. See
 [Voice, workout context and AR proposals](coach-context-and-ar.md) for the current
-context and room-JSON workflow. Inference
-is cancelled and the model released when the coach screen stops. Initial loading
-and file verification can take longer than subsequent questions. A successful
-checksum is reused within the same coach instance while file size and modification
-time remain unchanged; replacement invalidates that cached result. The **Voice** tab now accepts speech through Android on-device English recognition,
+context and room-JSON workflow. Leaving the coach screen cancels generation but keeps
+the model loaded, so only the first question of a session waits for loading. The **Voice** tab now accepts speech through Android on-device English recognition,
 shows the transcript and generated reply, and reads completed answers using an
 installed English offline TTS voice. Tap **Talk to coach** to start; **Stop** cancels
 listening, generation and playback. Backgrounding or closing the sheet stops all
@@ -53,31 +76,53 @@ not measure acoustic transcription accuracy with a real speaker.
 
 ## Build and validation
 
-Use JDK 17, Android SDK, NDK 29.0.13846066 and CMake 3.22.1:
+The Hexagon skels need Qualcomm's hexagon-clang, which the Android NDK does not ship,
+so llama.cpp is cross-compiled once in the pinned `snapdragon-toolchain` container. With
+Docker Desktop running:
+
+```powershell
+python tools/build-llama-snapdragon.py
+```
+
+That writes the prebuilt libraries into `app/src/main/jniLibs/arm64-v8a` (ignored by git;
+about 10 GB of image download and 15 minutes the first time). Gradle then builds normally
+with JDK 17, Android SDK, NDK 29.0.13846066 and CMake 3.22.1:
 
 ```powershell
 ./gradlew.bat :app:assembleDebug :app:testDebugUnitTest :app:assembleDebugAndroidTest
 ```
 
-The initial native build fetches pinned upstream sources. The APK contains the
-native runtime; the large model is not committed or packaged in the APK.
+Gradle fails with a pointer to the script if those libraries are missing. The APK contains
+the native runtime; the large model is not committed or packaged in the APK. Native
+libraries are packaged uncompressed (`useLegacyPackaging`) because the NPU loader opens the
+Hexagon skel by file path.
 
 `CoachKnowledgeTest` checks exercise coverage, saved data, reference selection
-and bounded prompt history. `OfflineCoachTest` requires the pinned model under
-the target app's `files/models/` directory and exercises real model answers and
+and bounded prompt history. `OfflineCoachTest` requires the pinned model to be
+available to the app (linked or sideloaded) and exercises real model answers and
 cancellation. It writes synthetic answers and timing measurements to
 `files/coach-test-result.json`, with no real user workout data.
 
-Validated on the connected iQOO I2501 (SM8850) on 2026-09-12: debug APK installed,
-18 app unit tests passed, and device inference/cancellation passed with Wi-Fi and
-mobile data disabled (both restored afterward). Manually reviewed generated
-pushup instructions and the squat detector-rule explanation. The final synthetic
-test took 12.0 seconds for the squat answer and 43.5 seconds for the pushup answer;
-background throttling affected timings. A foreground UI pushup answer completed
-in 9.8 seconds in an earlier run. These are observations, not latency guarantees.
-Process PSS was about 1.6 GB while the model was loaded and about 123 MB after
-leaving the coach during a new request. The model is already installed on this
-development phone; a fresh installation on another phone still needs setup.
+Validated on the connected iQOO I2501 (SM8850, Hexagon v81) on 2026-09-13 after the
+NPU move: unit tests pass, `OfflineCoachTest`, `CoachContextDeviceTest` and
+`CoachEngineDeviceTest` pass on the device, and logcat confirms
+`Hexagon Arch version v81`, `offloaded 37/37 layers` and a 1,955 MiB HTP0 model buffer.
+Time to the first token across the five synthetic answers was 418, 387, 406, 300 and
+311 ms, against 8.8 to 17.7 seconds on the previous CPU runtime. Model load was about
+7 seconds cold. A 304 MiB token-embedding tensor stays on the CPU; that is expected.
+Answers were read, not just checked for a pass. These are observations on one phone,
+not latency guarantees.
+
+The device tests use whatever model the app has: a linked document, or a copy
+sideloaded into `files/models`. `gradle.properties` sets
+`android.injected.androidTest.leaveApksInstalledAfterRun=true` so
+`connectedDebugAndroidTest` no longer uninstalls the app, and with it the app's
+private data, after a run.
+
+The earlier CPU-runtime measurement, kept for comparison: 12.0 seconds for a squat
+answer and 43.5 seconds for a pushup answer, with process PSS about 1.6 GB while
+loaded. The model is already installed on this development phone; a fresh
+installation on another phone still needs setup.
 
 ## Harness tuning
 

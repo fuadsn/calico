@@ -30,11 +30,16 @@ class CoachActivity : ComponentActivity() {
         val result=com.hackathon.calico.voice.VoiceAgent.dispatch(this,text)
         if(result!=null) coach.recordAction(text,result) else coach.send(text)
     }
-    private val importer = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { coach.import(it) } }
+    // Both keep the model in the user's storage: the download goes into a document they
+    // create, and an existing file is referenced in place rather than copied.
+    private val locator = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { coach.link(it) } }
+    private val downloader = registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri -> uri?.let { coach.download(it) } }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(statusBarStyle=SystemBarStyle.dark(0),navigationBarStyle=SystemBarStyle.dark(0))
         coach=ViewModelProvider(this)[CoachViewModel::class.java]
+        // Opening the coach almost always ends in a question; start the load now.
+        com.hackathon.calico.coach.CoachEngine.prewarm(this)
         setContent { CalicoTheme {
             val state by coach.state.collectAsState()
             var draft by rememberSaveable { mutableStateOf(intent.getStringExtra("question") ?: "") }
@@ -52,8 +57,8 @@ class CoachActivity : ComponentActivity() {
                     put("Forget",coach::forgetWorkout)
                     if(setup) put("Forget saved room",coach::clearRoom)
                     if(!state.ready || setup) {
-                        put("Download offline coach",coach::download)
-                        put("Import model file") { importer.launch(arrayOf("*/*")) }
+                        put("Download offline coach") { downloader.launch(CoachModel.NAME) }
+                        put("Locate model file") { locator.launch(arrayOf("*/*")) }
                     }
                     if(state.ready) {
                         put("Explain my cues") { coach.send("Explain my latest recorded form cues and what I should check next.") }
@@ -101,11 +106,11 @@ class CoachActivity : ComponentActivity() {
                 if(!state.ready || setup) {
                     Column(Modifier.fillMaxWidth().background(Charcoal,CardShape).padding(20.dp)) {
                         Text("Meet your offline coach",style=MaterialTheme.typography.titleLarge)
-                        Text("Ask exercise questions and understand your saved form cues. Download the 2.50 GB model once, or import it from storage. Keep this screen open during setup.",Modifier.padding(vertical=12.dp))
-                        Button(onClick=coach::download,enabled=!state.busy,modifier=Modifier.fillMaxWidth(),
+                        Text("Ask exercise questions and understand your saved form cues. Download the 2.38 GB model once into a folder you choose, or locate a copy already on this phone. The file stays in your storage, so reinstalling Calico never deletes it. Keep this screen open during setup.",Modifier.padding(vertical=12.dp))
+                        Button(onClick={ downloader.launch(CoachModel.NAME) },enabled=!state.busy,modifier=Modifier.fillMaxWidth(),
                             colors=ButtonDefaults.buttonColors(containerColor=Accent),shape=Pill) { Text("Download offline coach") }
-                        OutlinedButton(onClick={ importer.launch(arrayOf("*/*")) },enabled=!state.busy,modifier=Modifier.fillMaxWidth(),shape=Pill) { Text("Import model file") }
-                        Text("Qwen3-4B Instruct · Apache 2.0",style=MaterialTheme.typography.labelSmall,color=Muted)
+                        OutlinedButton(onClick={ locator.launch(arrayOf("*/*")) },enabled=!state.busy,modifier=Modifier.fillMaxWidth(),shape=Pill) { Text("Locate model file") }
+                        Text("Qwen3-4B Instruct · Apache 2.0 · runs on this phone's NPU",style=MaterialTheme.typography.labelSmall,color=Muted)
                     }
                 }
                 state.snapshot?.let { s ->

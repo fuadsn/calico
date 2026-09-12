@@ -21,6 +21,15 @@ import java.lang.ref.WeakReference
 
 class CalicoApplication : Application(), Application.ActivityLifecycleCallbacks {
     override fun onCreate() { super.onCreate(); VoiceAgent.initialize(this); registerActivityLifecycleCallbacks(this) }
+    /**
+     * The loaded model is the largest thing in the process, so give it back under pressure.
+     * UI_HIDDEN is excluded on purpose: every trip to the background would unload it.
+     */
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+        if(level in setOf(TRIM_MEMORY_RUNNING_LOW,TRIM_MEMORY_RUNNING_CRITICAL,TRIM_MEMORY_COMPLETE))
+            com.hackathon.calico.coach.CoachEngine.requestRelease()
+    }
     override fun onActivityResumed(activity: Activity) = VoiceAgent.resumed(activity)
     override fun onActivityPaused(activity: Activity) = VoiceAgent.paused(activity)
     override fun onActivityCreated(activity: Activity, state: Bundle?) = Unit
@@ -69,6 +78,8 @@ object VoiceAgent {
         if(!enabled) { status="Hands-free off"; return }
         if(voiceUsers>0 || foreground.get()==null || foreground.get() is VoiceAgentActivity) { status="Wake listening paused"; return }
         if(app.checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED) { status="Microphone permission needed"; return }
+        // Load the model while the user is still talking, so the first question answers at once.
+        com.hackathon.calico.coach.CoachEngine.prewarm(app)
         status="Starting Calico wake listening…"
         main.postDelayed({ if(ticket==restart) wake.start({ keyword ->
             acceptKeyword(keyword)

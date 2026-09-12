@@ -10,15 +10,15 @@ Full notices are bundled in sherpa-onnx.txt and onnxruntime.txt.
 
 Qwen3-4B-Instruct-2507, Qwen team: Apache License 2.0
 https://huggingface.co/Qwen/Qwen3-4B-Instruct-2507
-GGUF: https://huggingface.co/lmstudio-community/Qwen3-4B-Instruct-2507-GGUF
-Optional existing fallback: Qwen3-1.7B, Qwen team, Apache License 2.0
-https://huggingface.co/ggml-org/Qwen3-1.7B-GGUF
+GGUF (Q4_0): https://huggingface.co/unsloth/Qwen3-4B-Instruct-2507-GGUF
 
 llama.cpp and ggml: MIT license; pinned revision 3057bb66c86c46d5781e50e85462a760ba7d1feb
 https://github.com/ggml-org/llama.cpp
 
-Arm KleidiAI v1.24.0: Apache License 2.0
-https://github.com/ARM-software/kleidiai
+Hexagon NPU backend from llama.cpp: MIT license
+DSP libraries built with the Qualcomm Hexagon SDK 6.6.0 through the
+snapdragon-toolchain container image
+https://github.com/snapdragon-toolchain
 
 MIT License
 
