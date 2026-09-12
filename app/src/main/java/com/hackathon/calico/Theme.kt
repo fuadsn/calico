@@ -19,7 +19,7 @@ val Card = Color(0xFFF6F0E9)        // surfaces: warm light grey
 val Charcoal = Color(0xFFF0E8DF)    // tiles, chips: warm grey; also text on Snow pills
 val Slate = Color(0xFFE6DDD2)       // secondary tiles: deeper warm grey
 val Accent = Color(0xFFE07A35)      // ginger: progress and the one main button
-val AccentSoft = Color(0xFFE6DDD2)  // warm grey (same as Slate); no light orange tint
+val AccentSoft = Accent             // no extra shade; patches are ginger or dark brown
 val OnAccent = Color(0xFFFFFCF8)    // text and icons placed on the accent
 val Cloud = Color(0xFFF3ECE4)       // unselected nav circles
 val Snow = Color(0xFF3A2E27)        // dark brown for strong pills and bubbles
@@ -65,7 +65,7 @@ fun CalicoTheme(content: @Composable () -> Unit) =
 val Exercise.label get() = name.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }
 
 /** Tile colour per step: greys with a sage one every fourth. */
-fun tileColor(i: Int) = listOf(Charcoal, Slate, Card, Slate)[i % 4]
+fun tileColor(i: Int) = listOf(Charcoal, Accent, Card, Snow)[i % 4]
 
 /** Text colour that reads on a given tile. */
 fun onTile(c: Color) = if (c.luminance() > 0.4f) Ink else Bg
