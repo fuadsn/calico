@@ -539,13 +539,7 @@ class WorkoutActivity : ComponentActivity() {
         val e = counter.exercise
         val points = FloatArray(99) { n -> val j = pose[n / 3]
             when (n % 3) { 0 -> j.x(); 1 -> j.y(); else -> j.z() } }
-        val visibility = FloatArray(33) { pose[it].visibility().orElse(0f) }
-        if (benchLog != null) {
-            fun delta(axis: Int) = (points[11 * 3 + axis] + points[12 * 3 + axis] -
-                points[23 * 3 + axis] - points[24 * 3 + axis]) / 2f
-            benchLog?.println("gate t=${result.timestampMs()} dx=${delta(0)} dy=${delta(1)} dz=${delta(2)} visL=${e.left.minOf { visibility[it] }} visR=${e.right.minOf { visibility[it] }} ok=${PoseAngles.orientationOk(e.orientation, points)}")
-        }
-        val sample = PoseAngles.select(e, points, visibility) ?: return
+        val sample = PoseAngles.select(e, points, FloatArray(33) { pose[it].visibility().orElse(0f) }) ?: return
         val t = result.timestampMs()
         benchLog?.println("t=$t l=${sample.left} r=${sample.right}")
         val leftCounter = counter
