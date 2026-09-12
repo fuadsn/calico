@@ -85,9 +85,7 @@ class MainActivity : ComponentActivity() {
 }
 
 fun openScan(ctx: android.content.Context) {
-    // Room-scan mode lives in the AR module; launch it by name once it exists.
-    runCatching { ctx.startActivity(Intent(ctx, Class.forName("com.hackathon.calico.ScanActivity"))) }
-        .onFailure { Toast.makeText(ctx, "Room scan is on its way", Toast.LENGTH_SHORT).show() }
+    ctx.startActivity(Intent(ctx, com.calico.roomscan.ScanActivity::class.java))
 }
 
 @Composable
@@ -237,6 +235,11 @@ private fun Home(progress: Progress, resumed: Int) {
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(step.exercise.label, style = MaterialTheme.typography.titleLarge, color = onTile(tile))
+                    Text("View workout", color = onTile(tile).copy(0.8f), style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.clickable {
+                            ctx.startActivity(Intent(ctx, com.calico.roomscan.PreviewActivity::class.java)
+                                .putExtra("exercise", step.exercise.name))
+                        }.padding(vertical = 6.dp))
                     Text(if (step.warmup) "Warm-up" else "Workout", style = MaterialTheme.typography.labelSmall, color = onTile(tile).copy(0.6f))
                 }
                 Box(Modifier.size(58.dp).background(Snow, CircleShape), contentAlignment = Alignment.Center) {

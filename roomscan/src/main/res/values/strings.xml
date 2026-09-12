@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="model_credits">Model credits</string>
+    <string name="model_credits_details"><![CDATA[Animated Base Character by <a href="https://poly.pizza/m/cwYvO5UauX">Quaternius</a>, licensed <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>. Original model file; Calico supplies exercise poses and simplified shading.<br/><br/>Fallback: Cesium Man by Cesium, <a href="https://github.com/KhronosGroup/glTF-Sample-Models">Khronos sample models</a>, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.]]></string>
+    <string name="scan_looking">Move your phone slowly across the floor</string>
+    <string name="scan_points_only">Tracking %1$d details. Move sideways while aiming at the floor to find a surface.</string>
+    <string name="scan_surfaces">%1$d surfaces mapped. Keep scanning the floor to grow the workout area.</string>
+    <string name="scan_depth_patch">Depth surface estimate: %1$.1f sq m. Keep moving while the floor map settles.</string>
+    <string name="scan_zone_ample">Floor estimate: %1$.1f sq m. Check for furniture and clear your space.</string>
+    <string name="scan_zone_standing">Small floor estimate: %1$.1f sq m. Check clearance before exercising.</string>
+    <string name="scan_more_light">Move to a brighter area so the camera can track the floor</string>
+    <string name="scan_slow_down">Slow down and move your phone gently from side to side</string>
+    <string name="scan_more_detail">Aim at a textured part of the floor and move sideways</string>
+    <string name="scan_next">Start workout</string>
+    <string name="scan_skip">Skip scan</string>
+    <string name="scan_camera_denied">Camera permission is needed to scan the room</string>
+    <string name="scan_camera_unavailable">Camera unavailable</string>
+    <string name="scan_ar_unavailable">ARCore is not available on this device</string>
+    <string name="scan_workout_missing">Workout screen not found</string>
+
+    <string name="preview_looking">Point at the floor to stand the demo up</string>
+    <string name="preview_pending">3D demo shown in the corner. Aim at the floor or tap a mapped surface to place it.</string>
+    <string name="preview_offscreen">The demo is placed outside this view. Turn toward it or tap a surface to move it.</string>
+    <string name="preview_tap">Tap the floor to move the demo</string>
+    <string name="figure_interaction">Drag the model up to lift, sideways to turn. Release to drop.</string>
+    <string name="preview_find_support">Scan the floor and a raised support with clear space beside it. Showing a separate demo while searching.</string>
+    <string name="preview_find_overhead">Scan the floor and an overhead hand support. The scanner detects geometry, so check that the support is suitable. Showing a separate demo.</string>
+    <string name="preview_support_ready">Feet on the floor; palms on the raised surface. Drag up to lift; release to reconnect. Tap nearby to choose another spot.</string>
+    <string name="preview_overhead_ready">Hands attached to the overhead surface; feet hang freely. Check the real support before exercising. Drag up to lift.</string>
+    <string name="preview_no_ar">Showing the demo without AR</string>
+    <string name="preview_back">Back</string>
+    <string name="preview_start">Try it</string>
+</resources>

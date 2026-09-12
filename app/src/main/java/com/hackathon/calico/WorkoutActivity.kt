@@ -85,8 +85,8 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.calico.roomscan.PoseRecording
 import com.google.mediapipe.framework.image.BitmapImageBuilder
-import com.google.mediapipe.tasks.components.containers.NormalizedLandmark
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.core.Delegate
 import com.google.mediapipe.tasks.vision.core.RunningMode
@@ -96,7 +96,6 @@ import java.io.File
 import java.util.Locale
 import java.util.concurrent.Executors
 import kotlin.concurrent.thread
-import kotlin.math.abs
 
 /**
  * MODE 2: live pose tracking, rep counting, voice cues, one routine step after another.
@@ -456,6 +455,7 @@ class WorkoutActivity : ComponentActivity() {
         val frames = r.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_FRAME_COUNT)?.toInt() ?: (durationMs * 30 / 1000).toInt()
         val fps = if (durationMs > 0) frames * 1000f / durationMs else 30f
         val step = maxOf(1, Math.round(fps / 15f))   // ~15 analysed frames per second is plenty
+        val capture = if (intent.getBooleanExtra("export_pose", false)) PoseRecording(counter.exercise.name) else null
         var analysed = 0
         var i = 0
         while (i < frames) {
@@ -464,10 +464,33 @@ class WorkoutActivity : ComponentActivity() {
             val result = landmarker.detectForVideo(BitmapImageBuilder(bmp).build(), ts)
             benchFrame = bmp
             onPose(result, bmp.width, bmp.height)
+            capture?.let {
+                val world = result.worldLandmarks().firstOrNull()
+                val image = result.landmarks().firstOrNull()
+                val confident = image?.size == 33 && world?.size == 33 &&
+                    (11..32).all { j -> image[j].visibility().orElse(0f) >= 0.5f }
+                val points = world?.takeIf { it.size == 33 }?.let { joints ->
+                    FloatArray(99) { n -> val j = joints[n / 3]
+                        when (n % 3) { 0 -> j.x(); 1 -> j.y(); else -> j.z() } }
+                }
+                it.add(ts, points, confident)
+            }
             analysed++
             i += step
         }
         r.release()
+        capture?.let {
+            try {
+                val json = it.toJson(file.name)
+                val folder = File(filesDir, "pose-exports").apply { mkdirs() }
+                File(folder, "${counter.exercise.name}.json").writeText(json)
+                Log.i("CALICO_POSE", "Exported ${counter.exercise.name} from ${file.name}")
+            } catch (e: IllegalArgumentException) { Log.w("CALICO_POSE", "Export skipped: ${e.message}") }
+        }
+        // Drain the posted feeds before reporting totals; short videos can finish ahead of the UI queue.
+        val drained = java.util.concurrent.CountDownLatch(1)
+        ui.post { drained.countDown() }
+        drained.await()
         val line = "exercise=${counter.exercise} reps=${total()} cues=${totalCues()} frames=$analysed"
         Log.i("CALICO_BENCH", line)
         benchLog?.println("RESULT $line"); benchLog?.close(); benchLog = null
@@ -513,51 +536,19 @@ class WorkoutActivity : ComponentActivity() {
     private fun onPose(result: PoseLandmarkerResult, w: Int, h: Int) {
         val pose = result.landmarks().firstOrNull()
         overlay.update(pose ?: emptyList(), w, h)
-        if (pose != null && benchLog != null) {   // bench trace: raw gate inputs for every frame
-            val dx = (pose[11].x() + pose[12].x() - pose[23].x() - pose[24].x()) / 2f
-            val dy = (pose[11].y() + pose[12].y() - pose[23].y() - pose[24].y()) / 2f
-            val e = counter.exercise
-            fun v(idx: IntArray) = idx.minOf { pose[it].visibility().orElse(0f) }
-            val dz = (pose[11].z() + pose[12].z() - pose[23].z() - pose[24].z()) / 2f
-            benchLog?.println("gate t=${result.timestampMs()} dx=${"%.2f".format(dx)} dy=${"%.2f".format(dy)} dz=${"%.2f".format(dz)} visL=${"%.2f".format(v(e.left))} visR=${"%.2f".format(v(e.right))} ok=${orientationOk(pose)}")
-        }
-        if (pose == null || phase != Phase.RUNNING || counter.done || !orientationOk(pose)) return
-
+        if (pose == null || phase != Phase.RUNNING || counter.done) return
         val e = counter.exercise
-        fun vis(idx: IntArray) = idx.minOf { pose[it].visibility().orElse(0f) }
-        fun ang(j: IntArray) = angle(pose[j[0]].x(), pose[j[0]].y(), pose[j[1]].x(), pose[j[1]].y(), pose[j[2]].x(), pose[j[2]].y())
-        val lOk = vis(e.left) >= 0.5f; val rOk = vis(e.right) >= 0.5f
+        val points = FloatArray(99) { n -> val j = pose[n / 3]
+            when (n % 3) { 0 -> j.x(); 1 -> j.y(); else -> j.z() } }
+        val sample = PoseAngles.select(e, points, FloatArray(33) { pose[it].visibility().orElse(0f) }) ?: return
         val t = result.timestampMs()
-        if (e.sides == Sides.SUM) {   // each leg has its own counter
-            val l = if (lOk) ang(e.left) else null; val r = if (rOk) ang(e.right) else null
-            benchLog?.println("t=$t l=${l?.toInt() ?: "-"} r=${r?.toInt() ?: "-"}")
-            ui.post { l?.let { counter.feed(it, t) }; r?.let { counterR?.feed(it, t) } }
-            return
-        }
-        val a = when {
-            e.sides == Sides.EITHER && lOk && rOk -> maxOf(ang(e.left), ang(e.right))
-            lOk && (!rOk || vis(e.left) >= vis(e.right)) -> ang(e.left)   // the more visible side
-            rOk -> ang(e.right)
-            else -> return
-        }
-        benchLog?.println("t=$t a=${"%.0f".format(a)} l=${if (lOk) "%.0f".format(ang(e.left)) else "-"} r=${if (rOk) "%.0f".format(ang(e.right)) else "-"} vis=${"%.2f/%.2f".format(vis(e.left), vis(e.right))}")
-        ui.post { counter.feed(a, t) }   // state writes on the main thread
-    }
-
-    /** Torso vector mid-hip -> mid-shoulder; upright if it's more vertical than horizontal. */
-    private fun orientationOk(p: List<NormalizedLandmark>): Boolean {
-        val dx = (p[11].x() + p[12].x() - p[23].x() - p[24].x()) / 2f
-        val dy = (p[11].y() + p[12].y() - p[23].y() - p[24].y()) / 2f
-        // upright = shoulders clearly above hips. Anything else (lying, planking, or a torso pointing
-        // at the camera in a front-view pushup) counts as horizontal.
-        // A front-view pushup looks upright in 2D (hips appear above the shoulders), but the shoulders are
-        // far closer to the camera: model depth puts them > 0.45 nearer. Standing stays within ±0.15.
-        val dz = (p[11].z() + p[12].z() - p[23].z() - p[24].z()) / 2f
-        val upright = dy < 0 && abs(dy) > abs(dx) && dz > -0.35f
-        return when (counter.exercise.orientation) {
-            Orientation.UPRIGHT -> upright
-            Orientation.HORIZONTAL -> !upright
-            Orientation.ANY -> true
+        benchLog?.println("t=$t l=${sample.left} r=${sample.right}")
+        val leftCounter = counter
+        val rightCounter = counterR
+        ui.post {
+            if (counter !== leftCounter || phase != Phase.RUNNING) return@post
+            sample.left?.let { leftCounter.feed(it, t) }
+            sample.right?.let { rightCounter?.feed(it, t) }
         }
     }
 
