@@ -136,7 +136,7 @@ private fun App(resumed: Int, requestedTab: Int, navigationRequest: Int) {
 private val TABS = listOf<Pair<ImageVector, String>>(
     Icons.Outlined.Home to "Home", Icons.Outlined.BarChart to "Overview",
     Icons.Outlined.FitnessCenter to "Exercises", Icons.Outlined.CameraAlt to "Scan",
-    Icons.Outlined.Mic to "Voice",
+    Lucide.Cat to "Calico",
 )
 
 @Composable
@@ -174,7 +174,7 @@ private fun Home(progress: Progress, resumed: Int, onVoice: () -> Unit) {
                     Toast.makeText(ctx, "Progress reset", Toast.LENGTH_SHORT).show()
                 }),
                 contentAlignment = Alignment.Center,
-            ) { Icon(Lucide.Cat, "Calico", tint = OnAccent, modifier = Modifier.size(28.dp)) }
+            ) { Icon(Lucide.User, "You", tint = OnAccent, modifier = Modifier.size(28.dp)) }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -207,7 +207,7 @@ private fun Home(progress: Progress, resumed: Int, onVoice: () -> Unit) {
                     ctx.startActivity(Intent(ctx, CoachActivity::class.java))
                 }.padding(12.dp))
             Box(Modifier.size(48.dp).clip(CircleShape).background(Accent).clickable(onClick = onVoice),
-                contentAlignment = Alignment.Center) { Icon(Icons.Outlined.Mic, "Voice", tint = OnAccent) }
+                contentAlignment = Alignment.Center) { Icon(Lucide.Cat, "Calico", tint = OnAccent) }
         }
 
         // Today's workout

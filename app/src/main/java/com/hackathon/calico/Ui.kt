@@ -78,9 +78,9 @@ fun BumpBar(items: List<Pair<ImageVector, String>>, selected: Int, modifier: Mod
             val on = i == selected
             val scale by animateFloatAsState(if (on) 1.12f else 1f, spring(dampingRatio = 0.6f), label = "scale")
             Box(
-                Modifier.size(buttonSize).scale(scale).clip(CircleShape).background(if (on) Snow else Cloud).clickable { onSelect(i) },
+                Modifier.size(buttonSize).scale(scale).clip(CircleShape).background(if (on) Accent else Cloud).clickable { onSelect(i) },
                 contentAlignment = Alignment.Center,
-            ) { Icon(icon, name, tint = if (on) Charcoal else onTile(Cloud)) }
+            ) { Icon(icon, name, tint = if (on) OnAccent else onTile(Cloud)) }
         }
     }
 }
