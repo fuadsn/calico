@@ -1,6 +1,7 @@
 package com.hackathon.calico
 
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -61,6 +62,7 @@ fun BumpBar(items: List<Pair<ImageVector, String>>, selected: Int, modifier: Mod
                 val p = Path.combine(PathOperation.Union, pill, circle)
                 drawPath(p, PillBg)
                 drawPath(p, onTile(Cloud), style = Stroke(3.dp.toPx()))
+                drawCircle(Accent, (buttonSize / 2).toPx() * 1.2f, Offset(cx, cy))   // the coral disc slides with the swell
             }
             .padding(horizontal = BUMP, vertical = BUMP + 4.dp),
         horizontalArrangement = Arrangement.spacedBy(gap),
@@ -69,9 +71,9 @@ fun BumpBar(items: List<Pair<ImageVector, String>>, selected: Int, modifier: Mod
             val on = i == selected
             val scale by animateFloatAsState(if (on) 1.2f else 1f, spring(dampingRatio = 0.6f), label = "scale")
             Box(
-                Modifier.size(buttonSize).scale(scale).clip(CircleShape).background(if (on) Accent else Cloud).clickable { onSelect(i) },
+                Modifier.size(buttonSize).scale(scale).clip(CircleShape).clickable { onSelect(i) },
                 contentAlignment = Alignment.Center,
-            ) { Icon(icon, name, tint = if (on) OnAccent else onTile(Cloud)) }
+            ) { Icon(icon, name, tint = animateColorAsState(if (on) OnAccent else onTile(Cloud), label = "tint").value) }
         }
     }
 }
