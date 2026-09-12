@@ -59,6 +59,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.CornerRadius
@@ -144,7 +145,7 @@ private fun Home(progress: Progress, resumed: Int) {
         // header: avatar top-left, greeting, streak chip
         Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
-                Modifier.size(56.dp).background(Accent, CircleShape).combinedClickable(onClick = {}, onLongClick = {
+                Modifier.size(56.dp).clip(CircleShape).background(Accent).combinedClickable(onClick = {}, onLongClick = {
                     progress.reset(); resetsKey++   // demo rehearsals start from a zero streak
                     Toast.makeText(ctx, "Progress reset", Toast.LENGTH_SHORT).show()
                 }),
@@ -176,7 +177,7 @@ private fun Home(progress: Progress, resumed: Int) {
                 Spacer(Modifier.height(16.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Row(
-                        Modifier.background(Accent, Pill).clickable { startRoutine(ctx, plan) }.padding(start = 22.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                        Modifier.clip(Pill).background(Accent).clickable { startRoutine(ctx, plan) }.padding(start = 22.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         Text(if (doneToday) "GO AGAIN" else "START", style = MaterialTheme.typography.labelLarge, color = OnAccent)
@@ -231,7 +232,7 @@ private fun Home(progress: Progress, resumed: Int) {
 @Composable
 private fun SplitCard(split: Split, tile: Color, modifier: Modifier, onClick: () -> Unit) {
     val fg = onTile(tile)
-    Column(modifier.background(tile, TileShape).clickable(onClick = onClick).padding(18.dp)) {
+    Column(modifier.clip(TileShape).background(tile).clickable(onClick = onClick).padding(18.dp)) {
         Text(split.emoji, fontSize = 28.sp)
         Spacer(Modifier.height(14.dp))
         Text(split.title, style = MaterialTheme.typography.titleLarge, color = fg)
@@ -510,7 +511,7 @@ private fun Exercises() {
         Exercise.values().forEachIndexed { i, e ->
             val tile = tileColor(i)
             Row(
-                Modifier.fillMaxWidth().padding(bottom = 10.dp).background(tile, TileShape)
+                Modifier.fillMaxWidth().padding(bottom = 10.dp).clip(TileShape).background(tile)
                     .clickable { ctx.startActivity(Intent(ctx, WorkoutActivity::class.java).putExtra("exercise", e.name)) }
                     .padding(18.dp),
                 verticalAlignment = Alignment.CenterVertically,

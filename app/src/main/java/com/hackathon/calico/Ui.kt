@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Path
@@ -74,7 +75,7 @@ fun BumpBar(items: List<Pair<ImageVector, String>>, selected: Int, modifier: Mod
             val on = i == selected
             val scale by animateFloatAsState(if (on) 1.12f else 1f, spring(dampingRatio = 0.6f), label = "scale")
             Box(
-                Modifier.size(BTN).scale(scale).background(if (on) Snow else Cloud, CircleShape).clickable { onSelect(i) },
+                Modifier.size(BTN).scale(scale).clip(CircleShape).background(if (on) Snow else Cloud).clickable { onSelect(i) },
                 contentAlignment = Alignment.Center,
             ) { Icon(icon, name, tint = if (on) Charcoal else onTile(Cloud)) }
         }
