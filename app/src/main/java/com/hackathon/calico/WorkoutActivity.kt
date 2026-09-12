@@ -45,7 +45,6 @@ import androidx.compose.material.icons.outlined.Pause
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Check
 import androidx.compose.material.icons.outlined.SkipNext
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.outlined.PlayArrow
 import androidx.compose.material3.Icon
@@ -311,24 +310,20 @@ class WorkoutActivity : ComponentActivity() {
         }
     }
 
-    /** Floating pill like the Home tab bar: back, pause, skip/finish. */
+    /** Same bump bar as the Home tabs: back, pause, skip/finish. The swell sits on the action button. */
     @Composable
     private fun FloatingBar(modifier: Modifier) {
         val open = steps[stepIndex].target == Int.MAX_VALUE
-        Row(
-            modifier.navigationBarsPadding().padding(bottom = 12.dp).shadow(16.dp, Pill, ambientColor = Color.Black.copy(0.4f)).background(Card, Pill).padding(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            @Composable fun Btn(icon: ImageVector, name: String, on: Boolean = false, onClick: () -> Unit) = Box(
-                Modifier.size(56.dp).background(if (on) Accent else Cloud, CircleShape).clickable(onClick = onClick),
-                contentAlignment = Alignment.Center,
-            ) { Icon(icon, name, tint = if (on) OnAccent else onTile(Cloud)) }
-            Btn(Icons.AutoMirrored.Outlined.ArrowBack, "back") { finish() }
-            Btn(if (phase == Phase.PAUSED) Icons.Outlined.PlayArrow else Icons.Outlined.Pause, "pause", on = phase == Phase.PAUSED) {
-                phase = if (phase == Phase.PAUSED) Phase.RUNNING else Phase.PAUSED
-            }
-            Btn(if (stepIndex == steps.lastIndex) Icons.Outlined.Check else Icons.Outlined.SkipNext, if (open) "finish" else "skip", on = true) {
-                if (open) { results += steps[stepIndex] to count; phase = Phase.DONE; cameraProvider?.unbindAll() } else advance()
+        val items = listOf<Pair<ImageVector, String>>(
+            Icons.AutoMirrored.Outlined.ArrowBack to "back",
+            (if (phase == Phase.PAUSED) Icons.Outlined.PlayArrow else Icons.Outlined.Pause) to "pause",
+            (if (stepIndex == steps.lastIndex) Icons.Outlined.Check else Icons.Outlined.SkipNext) to (if (open) "finish" else "skip"),
+        )
+        BumpBar(items, if (phase == Phase.PAUSED) 1 else 2, modifier) { i ->
+            when (i) {
+                0 -> finish()
+                1 -> phase = if (phase == Phase.PAUSED) Phase.RUNNING else Phase.PAUSED
+                else -> if (open) { results += steps[stepIndex] to count; phase = Phase.DONE; cameraProvider?.unbindAll() } else advance()
             }
         }
     }
