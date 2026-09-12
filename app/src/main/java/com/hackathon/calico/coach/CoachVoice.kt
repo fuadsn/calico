@@ -31,6 +31,12 @@ class CoachVoice(private val context: Context, private val onQuestion: (String) 
     private var recognizer: SpeechRecognizer? = null
     private var tts: TextToSpeech? = null
     private var utterance = 0
+    private var streamTurn = -1
+    private var stoppedTurn = -1
+    private var consumed = ""
+    private var queued = 0
+    private var finished = 0
+    private var streamOpen = false
     private var recognitionEpoch = 0
     private var startupRetries = 0
     val recognitionAvailable get() = Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)
@@ -50,11 +56,12 @@ class CoachVoice(private val context: Context, private val onQuestion: (String) 
         } }
         tts?.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
             override fun onStart(id: String?) = Unit
-            override fun onDone(id: String?) { main.post { if (!closed && id == utterance.toString()) speaking=false } }
+            override fun onDone(id: String?) { main.post { retire(id) } }
             @Deprecated("Android callback")
-            override fun onError(id: String?) { main.post { if (!closed && id == utterance.toString()) {
-                speaking=false; error="Could not speak this answer. You can read it below."
-            } } }
+            override fun onError(id: String?) { main.post {
+                if (mine(id)) error="Could not speak this answer. You can read it below."
+                retire(id)
+            } }
         })
     }
     fun listen() {
@@ -111,12 +118,51 @@ class CoachVoice(private val context: Context, private val onQuestion: (String) 
     }
     fun speak(answer: String) {
         if(closed) return
-        accepting=false; recognizer?.cancel(); listening=false
         if(!speechReady) { error="Offline speech output isn't ready. Your answer is shown below."; return }
-        utterance++
-        speaking=tts?.speak(answer.replace(Regex("[*#`]"),""),TextToSpeech.QUEUE_FLUSH,null,utterance.toString()) == TextToSpeech.SUCCESS
-        if(!speaking) error="Could not speak this answer. You can read it below."
+        openTurn()
+        val queuedOk=enqueue(answer)
+        streamOpen=false
+        updateSpeaking()
+        if(!queuedOk) error="Could not speak this answer. You can read it below."
     }
+
+    /**
+     * Speaks an answer while the model is still writing it. [text] is the whole answer so
+     * far, so repeated calls are harmless; each one speaks only the sentences that have
+     * completed since the last. [turn] identifies the answer: a new value starts over.
+     * Pass [done] when generation ends, to speak whatever tail is left.
+     */
+    fun speakStreaming(turn: Int, text: String, done: Boolean) {
+        if(closed || !speechReady || turn==stoppedTurn) return
+        if(turn!=streamTurn) { openTurn(); streamTurn=turn }
+        // A late edit can shorten the answer; never re-speak what was already said.
+        val fresh=if(text.length>consumed.length && text.startsWith(consumed)) text.substring(consumed.length) else ""
+        val cut=if(done) fresh.length else CoachReplyPolicy.speakableCut(fresh)
+        if(cut>0) { consumed+=fresh.substring(0,cut); enqueue(fresh.substring(0,cut)) }
+        if(done) streamOpen=false
+        updateSpeaking()
+    }
+
+    private fun openTurn() {
+        accepting=false; recognizer?.cancel(); listening=false
+        utterance++; streamTurn=-1; consumed=""; queued=0; finished=0; streamOpen=true
+    }
+    private fun enqueue(text: String): Boolean {
+        val words=text.replace(Regex("[*#`]"),"").trim()
+        if(words.isEmpty()) return true
+        val mode=if(queued==0) TextToSpeech.QUEUE_FLUSH else TextToSpeech.QUEUE_ADD
+        val ok=tts?.speak(words,mode,null,"$utterance#$queued") == TextToSpeech.SUCCESS
+        if(ok) queued++
+        return ok
+    }
+    private fun mine(id: String?) = !closed && id?.substringBefore('#')==utterance.toString()
+    private fun retire(id: String?) {
+        if(!mine(id)) return
+        finished=maxOf(finished,(id!!.substringAfter('#').toIntOrNull() ?: 0)+1)
+        updateSpeaking()
+    }
+    /** Still speaking while more sentences are queued, or while the answer is still arriving. */
+    private fun updateSpeaking() { speaking = queued>0 && (streamOpen || finished<queued) }
     private fun markFinalizing() {
         if(finalizing) return
         finalizing=true
@@ -126,7 +172,11 @@ class CoachVoice(private val context: Context, private val onQuestion: (String) 
         } },8000)
     }
     fun finishListening() { if(listening && accepting && !finalizing) { markFinalizing(); recognizer?.stopListening() } }
-    fun stop() { level=0f; recognitionEpoch++; accepting=false; listening=false; finalizing=false; speaking=false; utterance++; recognizer?.cancel(); tts?.stop() }
+    fun stop() {
+        level=0f; recognitionEpoch++; accepting=false; listening=false; finalizing=false; speaking=false
+        utterance++; stoppedTurn=streamTurn; streamTurn=-1; consumed=""; queued=0; finished=0; streamOpen=false
+        recognizer?.cancel(); tts?.stop()
+    }
     override fun close() {
         if(closed) return
         stop(); closed=true; recognizer?.destroy(); recognizer=null; tts?.shutdown(); tts=null

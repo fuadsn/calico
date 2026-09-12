@@ -65,4 +65,41 @@ class CoachVoiceTest {
             File(context.filesDir,"voice-test-result.txt").writeText("$details\nOffline TTS completed; recognition start/stop passed. Acoustic transcription needs a spoken user test.")
         } finally { i.runOnMainSync { voice.close() } }
     }
+
+    /** Streaming speech must start on the first finished sentence, not on the last token. */
+    @Test fun streamedAnswersSpeakBeforeGenerationEnds() {
+        val i=InstrumentationRegistry.getInstrumentation()
+        val context=i.targetContext
+        lateinit var voice: CoachVoice
+        i.runOnMainSync { voice=CoachVoice(context) { } }
+        try {
+            var ready=false
+            repeat(100) {
+                i.runOnMainSync { ready=voice.speechReady }
+                if(!ready) SystemClock.sleep(100)
+            }
+            assertTrue("Offline TTS not ready",ready)
+
+            // A half-written sentence is not spoken yet.
+            i.runOnMainSync { voice.speakStreaming(1,"Lower your hips until",false); assertFalse(voice.speaking) }
+            // The first completed sentence starts the audio while the answer is still growing.
+            i.runOnMainSync { voice.speakStreaming(1,"Lower your hips until your thighs are parallel.",false); assertTrue(voice.speaking) }
+            i.runOnMainSync { voice.speakStreaming(1,"Lower your hips until your thighs are parallel. Keep your chest up. Then",false) }
+            var idle=false
+            // The turn stays open, so a drained queue must not look finished.
+            repeat(20) { i.runOnMainSync { idle=!voice.speaking }; if(!idle) SystemClock.sleep(100) }
+            assertFalse("Speech ended while the answer was still arriving",idle)
+
+            i.runOnMainSync { voice.speakStreaming(1,"Lower your hips until your thighs are parallel. Keep your chest up. Then drive up.",true) }
+            var finished=false
+            repeat(200) { i.runOnMainSync { finished=!voice.speaking }; if(!finished) SystemClock.sleep(100) }
+            assertTrue("Streamed speech did not finish",finished)
+            i.runOnMainSync { assertNull(voice.error) }
+
+            // Stopping a turn must not let a repeated update restart it.
+            i.runOnMainSync { voice.speakStreaming(2,"Hold the plank for twenty seconds.",false); assertTrue(voice.speaking) }
+            i.runOnMainSync { voice.stop(); assertFalse(voice.speaking) }
+            i.runOnMainSync { voice.speakStreaming(2,"Hold the plank for twenty seconds.",true); assertFalse(voice.speaking) }
+        } finally { i.runOnMainSync { voice.close() } }
+    }
 }
