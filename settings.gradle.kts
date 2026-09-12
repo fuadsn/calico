@@ -6,3 +6,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "calico"
 include(":app")
+include(":roomscan")
