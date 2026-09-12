@@ -170,24 +170,24 @@ private fun Home(progress: Progress, resumed: Int) {
 
         // Today's workout
         Spacer(Modifier.height(20.dp))
-        Box(Modifier.fillMaxWidth().background(Accent, CardShape).padding(20.dp)) {
+        Box(Modifier.fillMaxWidth().background(Card, CardShape).padding(20.dp)) {
             Column {
-                Text("Today's Workout", style = MaterialTheme.typography.headlineSmall, color = OnAccent)
+                Text("Today's Workout", style = MaterialTheme.typography.headlineSmall, color = Ink)
                 Spacer(Modifier.height(2.dp))
                 Text(
                     if (doneToday) "Done for today. Go again?" else "${level.title} · ${plan.size} exercises · ${level.blurb}",
-                    style = MaterialTheme.typography.bodyMedium, color = OnAccent.copy(0.7f),
+                    style = MaterialTheme.typography.bodyMedium, color = Muted,
                 )
                 Spacer(Modifier.height(16.dp))
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Row(
-                        Modifier.background(Snow, Pill).clickable { startRoutine(ctx, plan) }.padding(start = 22.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+                        Modifier.background(Accent, Pill).clickable { startRoutine(ctx, plan) }.padding(start = 22.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(if (doneToday) "GO AGAIN" else "START", style = MaterialTheme.typography.labelLarge, color = Charcoal)
+                        Text(if (doneToday) "GO AGAIN" else "START", style = MaterialTheme.typography.labelLarge, color = OnAccent)
                         Spacer(Modifier.width(12.dp))
-                        Box(Modifier.size(36.dp).background(Accent, CircleShape), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Outlined.NorthEast, null, tint = OnAccent, modifier = Modifier.size(18.dp))
+                        Box(Modifier.size(36.dp).background(Snow, CircleShape), contentAlignment = Alignment.Center) {
+                            Icon(Icons.Outlined.NorthEast, null, tint = Charcoal, modifier = Modifier.size(18.dp))
                         }
                     }
                     Spacer(Modifier.weight(1f))
@@ -245,10 +245,10 @@ private fun Ring(fraction: Float, text: String) {
     Box(Modifier.size(64.dp), contentAlignment = Alignment.Center) {
         Canvas(Modifier.fillMaxSize()) {
             val s = 7.dp.toPx(); val inset = s / 2; val arc = Size(size.width - s, size.height - s)
-            drawArc(OnAccent.copy(0.15f), 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(s))
-            drawArc(OnAccent, -90f, 360f * fraction, false, Offset(inset, inset), arc, style = Stroke(s, cap = StrokeCap.Round))
+            drawArc(Line, 0f, 360f, false, Offset(inset, inset), arc, style = Stroke(s))
+            drawArc(Accent, -90f, 360f * fraction, false, Offset(inset, inset), arc, style = Stroke(s, cap = StrokeCap.Round))
         }
-        Text(text, style = MaterialTheme.typography.labelMedium, color = OnAccent)
+        Text(text, style = MaterialTheme.typography.labelMedium, color = Ink)
     }
 }
 
@@ -342,18 +342,18 @@ private fun Overview(progress: Progress, resumed: Int) {
                 val mins = week.reversed().map { it.secs / 60f }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     StatTile("🏃", "Reps", "${todayStats.reps}", "reps", Charcoal, Modifier.weight(1f)) { Sparkline(reps, Accent) }
-                    StatTile("🔥", "Calories", "${todayStats.kcal}", "kcal", Slate, Modifier.weight(1f)) { Bars(kcal, Accent) }
-                    StatTile("⏱", "Time", "${todayStats.secs / 60}", "min", AccentSoft, Modifier.weight(1f)) { Bars(mins, Bg) }
+                    StatTile("🔥", "Calories", "${todayStats.kcal}", "kcal", Slate, Modifier.weight(1f)) { Bars(kcal, Snow) }
+                    StatTile("⏱", "Time", "${todayStats.secs / 60}", "min", AccentSoft, Modifier.weight(1f)) { Bars(mins, Snow) }
                 }
                 Text("last 7 days", style = MaterialTheme.typography.labelSmall, color = Muted, modifier = Modifier.padding(top = 6.dp, start = 4.dp))
 
                 // goal: one wide card
                 Spacer(Modifier.height(12.dp))
-                Row(Modifier.fillMaxWidth().background(Accent, CardShape).padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.fillMaxWidth().background(Charcoal, CardShape).padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
                     Column(Modifier.weight(1f)) {
-                        Text("Goal", style = MaterialTheme.typography.labelMedium, color = OnAccent.copy(0.8f))
-                        Text(LEVELS[current].title, style = MaterialTheme.typography.headlineSmall, color = OnAccent)
-                        Text("level ${current + 1} of ${LEVELS.size} · 🔥 $streak day streak", style = MaterialTheme.typography.labelSmall, color = OnAccent.copy(0.8f))
+                        Text("Goal", style = MaterialTheme.typography.labelMedium, color = Muted)
+                        Text(LEVELS[current].title, style = MaterialTheme.typography.headlineSmall, color = Ink)
+                        Text("level ${current + 1} of ${LEVELS.size} · 🔥 $streak day streak", style = MaterialTheme.typography.labelSmall, color = Muted)
                         Spacer(Modifier.height(12.dp))
                         GoalBar(completed.toFloat() / LEVELS.size, "${completed * 100 / LEVELS.size}%")
                     }

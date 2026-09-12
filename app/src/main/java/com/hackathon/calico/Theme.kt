@@ -12,20 +12,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
-// Palette: calico cat. Warm white coat, ginger patches, black patches, cream and tan in between.
-val Bg = Color(0xFFFFFBF5)          // screen background: warm white
-val Card = Color(0xFFF6EDE2)        // surfaces: cream
-val Charcoal = Color(0xFFFCE3CF)    // tiles, chips: peach; also text on Snow pills
-val Slate = Color(0xFFE9DCCB)       // secondary tiles: tan
-val Accent = Color(0xFFE8801F)      // ginger: accent, selected, progress
-val AccentSoft = Color(0xFF2B2118)  // black patch: fourth tile
-val OnAccent = Color(0xFFFFFFFF)    // text and icons placed on the accent
-val Cloud = Color(0xFFF1E7DA)       // unselected nav circles
-val Snow = Color(0xFF2B2118)        // black for strong pills and bubbles
-val PillBg = Color(0xFFFFFFFF)      // floating bars
-val Ink = Color(0xFF2B2118)         // primary text
-val Muted = Color(0xFF9A8B7A)       // secondary text
-val Line = Color(0xFFE6D9C8)        // hairlines, inactive path
+// Palette: muted calico. Off-white coat, dusty ginger used sparingly, dark brown for text and pills,
+// muted sand, tan and apricot for tiles. No black tiles.
+val Bg = Color(0xFFFBF7F1)          // screen background: off-white
+val Card = Color(0xFFF3ECE2)        // surfaces: muted cream
+val Charcoal = Color(0xFFE8DCCB)    // tiles, chips: muted sand; also text on Snow pills
+val Slate = Color(0xFFD9C4A9)       // secondary tiles: muted tan
+val Accent = Color(0xFFC97A4B)      // dusty ginger: progress and the one main button
+val AccentSoft = Color(0xFFE3BE9C)  // muted apricot: fourth tile
+val OnAccent = Color(0xFFFBF7F1)    // text and icons placed on the accent
+val Cloud = Color(0xFFEFE7DC)       // unselected nav circles
+val Snow = Color(0xFF4A3A31)        // muted dark brown for strong pills and bubbles
+val PillBg = Color(0xFFFDFBF8)      // floating bars
+val Ink = Color(0xFF3A2E27)         // primary text
+val Muted = Color(0xFF9A8B7D)       // secondary text
+val Line = Color(0xFFE6DCCF)        // hairlines, inactive path
 
 // Radii: cards 24, tiles 20, everything tappable is a pill.
 val CardShape = RoundedCornerShape(24.dp)
