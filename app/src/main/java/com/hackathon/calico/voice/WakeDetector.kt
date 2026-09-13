@@ -44,6 +44,7 @@ class WakeDetector(private val context: Context) {
                 audio.startRecording()
                 check(audio.recordingState==AudioRecord.RECORDSTATE_RECORDING) { "Microphone did not start" }
                 main.post { if(run==epoch) onReady() }
+                android.util.Log.i("CalicoWake","listening")
                 val buffer=ShortArray(1600)
                 var detected=""
                 var gain=1f
@@ -65,6 +66,7 @@ class WakeDetector(private val context: Context) {
                         if(result.isNotBlank()) { detected=result; android.util.Log.i("CalicoWake","heard $result peak=${"%.2f".format(peakSinceStart)} gain=${"%.1f".format(gain)}"); break }
                     }
                 }
+                android.util.Log.i("CalicoWake","run ended heard='$detected' peak=${"%.2f".format(peakSinceStart)}")
                 // Release the mic before Android's command recognizer starts.
                 audio.stop(); audio.release(); audio=null
                 if(detected.isNotEmpty()) main.post { if(run==epoch) onKeyword(detected) }
