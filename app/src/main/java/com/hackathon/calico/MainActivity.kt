@@ -126,7 +126,7 @@ private fun App(resumed: Int, requestedTab: Int, navigationRequest: Int) {
     ))
     Box(Modifier.fillMaxSize().background(Bg)) {
         Crossfade(tab, label = "tab", animationSpec = tween(220)) { t ->
-            when (t) { 0 -> Home(progress, resumed); 1 -> Overview(progress, resumed); else -> Exercises() }
+            when (t) { 0 -> Home(progress, resumed) { voice = true }; 1 -> Overview(progress, resumed); else -> Exercises() }
         }
         BumpBar(TABS, if (voice) 4 else tab, Modifier.align(Alignment.BottomCenter)) { i ->
             when (i) {
@@ -156,7 +156,7 @@ private fun SectionTitle(text: String) {
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun Home(progress: Progress, resumed: Int) {
+private fun Home(progress: Progress, resumed: Int, onVoice: () -> Unit) {
     val ctx = LocalContext.current
     var resetsKey by remember { mutableIntStateOf(0) }
     val key = resumed + resetsKey
@@ -228,6 +228,15 @@ private fun Home(progress: Progress, resumed: Int) {
             enabled = daySteps.isNotEmpty(),
         ) { startRoutine(ctx, daySteps) }
 
+        Spacer(Modifier.height(16.dp))
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text("Offline coach", style = MaterialTheme.typography.labelLarge, color = Accent,
+                modifier = Modifier.weight(1f).clip(Pill).clickable {
+                    ctx.startActivity(Intent(ctx, CoachActivity::class.java))
+                }.padding(12.dp))
+            Box(Modifier.size(48.dp).clip(CircleShape).background(Accent).clickable(onClick = onVoice),
+                contentAlignment = Alignment.Center) { Icon(Lucide.Cat, "Calico", tint = OnAccent) }
+        }
 
         // calories: target / burned / remaining
         Spacer(Modifier.height(20.dp))
