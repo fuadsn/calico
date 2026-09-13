@@ -8,8 +8,8 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * The rounded card behind the demo figure, in the app's stone-brown surface colour with a thin
- * pale-amber rim. The fill is written to the stencil buffer so the 3D demo drawn afterwards
+ * The rounded card behind the demo figure, in the app's grey component colour with a thin
+ * light rim. The fill is written to the stencil buffer so the 3D demo drawn afterwards
  * with `GL_EQUAL 1` is clipped to the rounded corners.
  */
 class InsetCard {
@@ -45,12 +45,12 @@ class InsetCard {
 
         GLES20.glStencilMask(0x00)
         fill(x - rim, y - rim, width + 2 * rim, height + 2 * rim, radius + rim, viewportWidth, viewportHeight)
-        GLES20.glUniform4f(colorUniform, 0.957f, 0.910f, 0.486f, 0.55f)
+        GLES20.glUniform4f(colorUniform, 0.847f, 0.882f, 0.910f, 0.45f)
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_FAN, 0, vertices.limit() / 2)
 
         GLES20.glStencilMask(0xFF)
         fill(x.toFloat(), y.toFloat(), width.toFloat(), height.toFloat(), radius, viewportWidth, viewportHeight)
-        GLES20.glUniform4f(colorUniform, 0.345f, 0.302f, 0.239f, 0.94f)
+        GLES20.glUniform4f(colorUniform, 0.227f, 0.243f, 0.231f, 0.94f)
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_FAN, 0, vertices.limit() / 2)
 
         GLES20.glDisableVertexAttribArray(positionAttrib)

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Rounded track in the nested grey with a coral fill, like the app's goal bar. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:id="@android:id/background">
+        <shape><solid android:color="@color/calico_nested" /><corners android:radius="999dp" /></shape>
+    </item>
+    <item android:id="@android:id/progress">
+        <scale android:scaleWidth="100%">
+            <shape><solid android:color="@color/calico_accent" /><corners android:radius="999dp" /></shape>
+        </scale>
+    </item>
+</layer-list>

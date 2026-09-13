@@ -52,21 +52,21 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
     private lateinit var hintText: TextView
     private lateinit var topBar: LinearLayout
     private lateinit var actionBar: LinearLayout
-
     private lateinit var insetLabel: TextView
+    private lateinit var demoHitArea: View
+
+    private val insetCard = InsetCard()
+    /** Demo card as left, top, width, height in view pixels; laid out on the UI thread, read on GL. */
+    @Volatile private var insetRect: IntArray? = null
+    @Volatile private var demoExpanded = false
+    private var insetDrawn = false
+    private var insetShown = false
 
     private val backgroundRenderer = BackgroundRenderer()
     private val planeRenderer = PlaneRenderer()
     private val pointCloudRenderer = PointCloudRenderer()
     private lateinit var fallbackAvatar: PoseFigureRenderer
     private val depthSurfaces = DepthSurfaces()
-    private val shadow = ContactShadow()
-    private val insetCard = InsetCard()
-
-    /** Demo card as left, top, width, height in view pixels; laid out on the UI thread, read on GL. */
-    @Volatile private var insetRect: IntArray? = null
-    private var insetDrawn = false
-    private var insetLabelShown = false
 
     private var figure: SkinnedFigure? = null
 
@@ -74,7 +74,6 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
     private val projectionMatrix = FloatArray(16)
     private val viewProjectionMatrix = FloatArray(16)
     private val standMatrix = FloatArray(16)
-    private val shadowMatrix = FloatArray(16)
     private val supportProjection = FloatArray(16)
     private val supportRotation = FloatArray(16)
     private val projectedCenter = FloatArray(4)
@@ -83,7 +82,6 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
     private var session: Session? = null
     private var installRequested = false
     private var anchor: Anchor? = null
-    private var anchorsFrom: Session? = null
     private var bodySupport: ArBodySupport? = null
     private var supportLostAt = 0L
     private val pendingTap = java.util.concurrent.atomic.AtomicReference<FloatArray?>()
@@ -121,10 +119,17 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         }
         actionBar = findViewById(R.id.actions)
         insetLabel = findViewById(R.id.insetLabel)
+        demoHitArea = findViewById(R.id.demoHitArea)
+        // AR stays the main view; the demo card toggles between a small corner card and a large one.
+        demoHitArea.setOnClickListener {
+            demoExpanded = !demoExpanded
+            insetLabel.setText(if (demoExpanded) R.string.preview_demo_close else R.string.preview_demo_label)
+            layoutInset()
+        }
         titleText.text = exercise.replace('_', ' ').lowercase().replaceFirstChar { it.uppercase() }
         figure = DemoFigure.read(assets, exercise)
         fallbackAvatar = PoseFigureRenderer(assets, exercise)
-        // Any layout pass can move the sheet (hints change length), so re-centre the card on each.
+        // Any layout pass can move the sheet (hints change length), so re-place the card on each.
         findViewById<View>(R.id.root).viewTreeObserver.addOnGlobalLayoutListener { layoutInset() }
 
         surfaceView.preserveEGLContextOnPause = true
@@ -138,6 +143,7 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         findViewById<View>(R.id.back).setOnClickListener { finish() }
         findViewById<Button>(R.id.start).setOnClickListener { startWorkout() }
         applyWindowInsets()
+        ViewMotion.riseIn(actionBar)
 
         if (figure == null) Log.w(TAG, "No rigged model loaded, falling back to the block figure")
     }
@@ -178,20 +184,37 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         }
     }
 
-    /** Centres the demo card in the space between the header text and the bottom sheet. */
+    /**
+     * Small: a corner card just above the sheet, clear of the middle of the camera view.
+     * Expanded: a large card centred between the header text and the sheet.
+     * The rectangle is left, top, width, height in view pixels; the GL thread draws it.
+     */
     private fun layoutInset() {
         val density = resources.displayMetrics.density
         val root = findViewById<View>(R.id.root)
-        val top = topBar.bottom - topBar.paddingBottom
-        val bottom = actionBar.top
-        val available = bottom - top - (48 * density).toInt()
-        val width = minOf(root.width - (48 * density).toInt(), (340 * density).toInt())
-        val height = minOf(available, (width * 1.2f).toInt())
-        if (width <= 0 || height <= 0) { insetRect = null; return }
-        val left = (root.width - width) / 2
-        val cardTop = top + (bottom - top - height) / 2 + (8 * density).toInt()
-        insetRect = intArrayOf(left, cardTop, width, height)
-        insetLabel.translationY = cardTop - insetLabel.height / 2f
+        val sheetTop = actionBar.top
+        val margin = (16 * density).toInt()
+        val rect = if (demoExpanded) {
+            val top = topBar.bottom - topBar.paddingBottom
+            val available = sheetTop - top - (48 * density).toInt()
+            val width = minOf(root.width - (48 * density).toInt(), (340 * density).toInt())
+            val height = minOf(available, (width * 1.2f).toInt())
+            intArrayOf((root.width - width) / 2, top + (sheetTop - top - height) / 2 + (8 * density).toInt(), width, height)
+        } else {
+            val width = (112 * density).toInt()
+            val height = (144 * density).toInt()
+            intArrayOf(root.width - width - margin, sheetTop - height - margin, width, height)
+        }
+        if (rect[2] <= 0 || rect[3] <= 0) { insetRect = null; return }
+        insetRect = rect
+        insetLabel.translationX = rect[0] + rect[2] / 2f - (insetLabel.left + insetLabel.width / 2f)
+        insetLabel.translationY = rect[1] - insetLabel.height / 2f
+        val params = demoHitArea.layoutParams as FrameLayout.LayoutParams
+        if (params.leftMargin != rect[0] || params.topMargin != rect[1] || params.width != rect[2] || params.height != rect[3]) {
+            params.leftMargin = rect[0]; params.topMargin = rect[1]
+            params.width = rect[2]; params.height = rect[3]
+            demoHitArea.layoutParams = params
+        }
     }
 
     override fun onResume() {
@@ -202,12 +225,6 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
             return
         }
         createSession()
-        // RoomSession closes the map after 30 s in the background; anchors from a closed session are dead.
-        if (session != null && session !== anchorsFrom) {
-            anchor = null
-            bodySupport = null
-            anchorsFrom = session
-        }
         arMode = session != null
         viewportChanged = true
         depthSurfaces.reset()
@@ -239,8 +256,10 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         surfaceView.onPause()
         interaction.suspend()
         pendingTap.set(null)
-        // Anchors stay valid while the session is paused, so coming back from the workout screen
-        // keeps the figure exactly where it was instead of re-placing it somewhere new.
+        anchor?.detach()
+        anchor = null
+        bodySupport?.detach()
+        bodySupport = null
         supportLostAt = 0L
         RoomSession.release(this)
         session = null
@@ -248,14 +267,6 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
     }
 
     override fun onDestroy() {
-        try {
-            anchor?.detach()
-            bodySupport?.detach()
-        } catch (e: RuntimeException) {
-            Log.w(TAG, "Room session already closed", e)
-        }
-        anchor = null
-        bodySupport = null
         session = null
         super.onDestroy()
     }
@@ -271,12 +282,11 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
     }
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
-        GLES20.glClearColor(BACKDROP, BACKDROP, BACKDROP * 1.1f, 1f)
+        GLES20.glClearColor(BACKDROP, BACKDROP, BACKDROP, 1f)
         backgroundRenderer.createOnGlThread()
         planeRenderer.createOnGlThread()
         pointCloudRenderer.createOnGlThread()
         fallbackAvatar.createOnGlThread()
-        shadow.createOnGlThread()
         insetCard.createOnGlThread()
         figure = DemoFigure.prepare(figure)
     }
@@ -293,15 +303,19 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         val seconds = (SystemClock.uptimeMillis() - startedAtMs) / 1000f
         interaction.advance(seconds)
         insetDrawn = false
-        if (arMode) drawAugmented(seconds) else {
+        if (arMode) {
+            drawAugmented(seconds)
+            // AR is the main view; the demo card rides on top in every AR state.
+            drawDemoInset(seconds)
+        } else {
             pendingTap.set(null)
             drawPlain(seconds)
             postHint(getString(R.string.preview_no_ar) + "\n" + getString(R.string.figure_interaction))
         }
-        if (insetDrawn != insetLabelShown) {
-            insetLabelShown = insetDrawn
+        if (insetDrawn != insetShown) {
+            insetShown = insetDrawn
             val visibility = if (insetDrawn) View.VISIBLE else View.INVISIBLE
-            runOnUiThread { insetLabel.visibility = visibility }
+            runOnUiThread { ViewMotion.fade(insetLabel, visibility == View.VISIBLE, View.INVISIBLE); demoHitArea.visibility = visibility }
         }
     }
 
@@ -328,7 +342,6 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         if (camera.trackingState != TrackingState.TRACKING) {
             interaction.suspend()
             pendingTap.set(null)
-            drawDemoInset(seconds)
             postHint(getString(ArFloor.trackingHint(camera.trackingFailureReason)))
             return
         }
@@ -355,7 +368,6 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         val stand = anchor?.takeIf { it.trackingState == TrackingState.TRACKING }
         if (stand == null) {
             interaction.suspend()
-            drawDemoInset(seconds)
             postHint(getString(R.string.preview_pending))
             return
         }
@@ -376,7 +388,6 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         val w = projectedCenter[3]
         if (w <= 0f || kotlin.math.abs(projectedCenter[0]) > w || kotlin.math.abs(projectedCenter[1]) > w) {
             interaction.hide()
-            drawDemoInset(seconds)
             postHint(getString(R.string.preview_offscreen))
             return
         }
@@ -412,7 +423,6 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
                 }
             }
             interaction.suspend()
-            drawDemoInset(seconds)
             postHint(getString(if (exercise == "PULLUP") R.string.preview_find_overhead else R.string.preview_find_support))
             return
         }
@@ -426,7 +436,6 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
             viewportWidth, viewportHeight)
         if (!interaction.isVisible) {
             interaction.hide()
-            drawDemoInset(seconds)
             postHint(getString(R.string.preview_offscreen))
             return
         }
@@ -441,18 +450,15 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         }
         val tap = pendingTap.getAndSet(null)
         if (anchor == null && tap == null) {
-            val saved = RoomSession.selectedAnchor?.takeIf { it.trackingState == TrackingState.TRACKING }
-            val floor = saved?.let { spot -> floors.firstOrNull { plane ->
-                kotlin.math.abs(plane.centerPose.ty() - spot.pose.ty()) < 0.15f && plane.isPoseInPolygon(spot.pose)
-            } }
-            if (saved != null && floor != null) {
-                // Attached to the floor plane, like tap placements, rather than floating in world space.
-                anchor = try { floor.createAnchor(saved.pose) } catch (e: RuntimeException) {
-                    Log.w(TAG, "Saved floor changed while placing", e); null
+            RoomSession.selectedAnchor?.takeIf { saved ->
+                saved.trackingState == TrackingState.TRACKING && floors.any { plane ->
+                    kotlin.math.abs(plane.centerPose.ty() - saved.pose.ty()) < 0.15f && plane.isPoseInPolygon(saved.pose)
                 }
+            }?.let {
+                anchor = session?.createAnchor(it.pose)
                 interaction.reset()
-                placementYaw = Math.toDegrees(atan2(frame.camera.pose.tx() - saved.pose.tx(),
-                    frame.camera.pose.tz() - saved.pose.tz()).toDouble()).toFloat()
+                placementYaw = Math.toDegrees(atan2(frame.camera.pose.tx() - it.pose.tx(),
+                    frame.camera.pose.tz() - it.pose.tz()).toDouble()).toFloat()
                 return
             }
         }
@@ -469,9 +475,7 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
                     val plane = hit.trackable as? Plane
                     hit.distance in 0.25f..5f && plane in floors &&
                         plane?.isPoseInPolygon(hit.hitPose) == true &&
-                        hit.hitPose.ty() < frame.camera.pose.ty() &&
-                        // A tap is a deliberate choice; automatic placement waits for a settled floor.
-                        (tap != null || plane.extentX * plane.extentZ >= MIN_AUTO_PLACE_AREA_M2)
+                        hit.hitPose.ty() < frame.camera.pose.ty()
                 }
             }
             if (hit != null) {
@@ -488,9 +492,8 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
     }
 
     /**
-     * A clearly separate 3D demo on a rounded card, centred between the header and the sheet,
-     * while the real room is being mapped. The card's fill marks the stencil so the figure and
-     * its supports are clipped to the rounded corners.
+     * The separate 3D demo on a rounded card, small in the corner or large in the middle (see
+     * [layoutInset]). The card's fill marks the stencil so the figure is clipped to its corners.
      */
     private fun drawDemoInset(seconds: Float) {
         val rect = insetRect ?: return
@@ -503,7 +506,8 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         GLES20.glEnable(GLES20.GL_STENCIL_TEST)
         GLES20.glClearStencil(0)
         GLES20.glClear(GLES20.GL_STENCIL_BUFFER_BIT)
-        insetCard.draw(x, y, width, height, 28 * density, 1.5f * density, viewportWidth, viewportHeight)
+        insetCard.draw(x, y, width, height, (if (demoExpanded) 28 else 20) * density, 1.5f * density,
+            viewportWidth, viewportHeight)
         GLES20.glStencilFunc(GLES20.GL_EQUAL, 1, 0xFF)
         GLES20.glStencilOp(GLES20.GL_KEEP, GLES20.GL_KEEP, GLES20.GL_KEEP)
 
@@ -546,21 +550,15 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
                 floatArrayOf(-0.65f, support.handZ - 0.25f, 0.65f, support.handZ - 0.25f,
                     0.65f, support.handZ + 0.25f, -0.65f, support.handZ + 0.25f), 100), supportProjection)
         }
-        drawFigure(seconds, lift = if (interactive) interaction.body.height else 0f)
+        drawFigure(seconds)
         if (interactive) interaction.bounds(viewProjectionMatrix, standMatrix,
             figure?.bounds ?: fallbackAvatar.bounds, viewportWidth, viewportHeight)
     }
 
-    private fun drawFigure(seconds: Float, support: BodySupport? = ExerciseMotion.support(exercise),
-        lift: Float = interaction.body.height) {
+    private fun drawFigure(seconds: Float, support: BodySupport? = ExerciseMotion.support(exercise)) {
         val rigged = figure
         if (rigged != null) rigged.draw(viewProjectionMatrix, standMatrix, seconds, support)
         else fallbackAvatar.draw(viewProjectionMatrix, standMatrix, seconds, support)
-        // After the figure, so the bounds are this frame's pose and the body occludes the shadow.
-        // The drag-lift is taken back out so the shadow stays on the floor.
-        standMatrix.copyInto(shadowMatrix)
-        Matrix.translateM(shadowMatrix, 0, 0f, -lift, 0f)
-        shadow.draw(viewProjectionMatrix, shadowMatrix, rigged?.bounds ?: fallbackAvatar.bounds)
     }
 
     private fun postHint(text: String) {
@@ -587,13 +585,11 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         const val NEAR_PLANE_M = 0.1f
         const val FAR_PLANE_M = 100f
 
-        const val BACKDROP = 0.09f
+        /** The app's #292929 ground. */
+        const val BACKDROP = 0.161f
         const val ORBIT_RADIUS_M = 3.4f
         const val ORBIT_HEIGHT_M = 1.4f
         const val LOOK_AT_HEIGHT_M = 0.85f
         const val TURNTABLE_DEG_PER_S = 18f
-
-        /** Brand-new floor patches still shift while ARCore refines them; anchors on them drift. */
-        const val MIN_AUTO_PLACE_AREA_M2 = 0.35f
     }
 }

@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <!-- Lucide arrow-left, stroked like the app's other icons. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
@@ -8,14 +8,14 @@
     <path
         android:fillColor="#00000000"
         android:pathData="M12,19L5,12L12,5"
-        android:strokeColor="#584D3D"
+        android:strokeColor="@color/calico_ink"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:strokeWidth="2" />
     <path
         android:fillColor="#00000000"
         android:pathData="M19,12L5,12"
-        android:strokeColor="#584D3D"
+        android:strokeColor="@color/calico_ink"
         android:strokeLineCap="round"
         android:strokeLineJoin="round"
         android:strokeWidth="2" />

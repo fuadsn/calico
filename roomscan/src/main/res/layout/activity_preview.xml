@@ -1,16 +1,16 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="#3F3728">
+    android:background="@color/calico_bg">
 
     <android.opengl.GLSurfaceView
         android:id="@+id/surface"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <!-- Header, like the workout screen: large title, exercise below, amber pill on the right.
+    <!-- Header, like the workout screen: large title, exercise below, light pill on the right.
          Padding is applied in code so it clears the display cutout. -->
     <LinearLayout
         android:id="@+id/topBar"
@@ -56,7 +56,7 @@
             android:paddingEnd="14dp"
             android:paddingBottom="10dp"
             android:text="@string/model_credits"
-            android:textColor="#6A5D4A"
+            android:textColor="@color/calico_charcoal"
             android:textSize="13sp" />
     </LinearLayout>
 
@@ -76,8 +76,19 @@
         android:paddingBottom="6dp"
         android:text="@string/preview_demo_label"
         android:textAllCaps="true"
-        android:textColor="#6A5D4A"
+        android:textColor="@color/calico_charcoal"
         android:textSize="12sp"
+        android:visibility="invisible" />
+
+    <!-- Transparent tap target over the GL-drawn demo card; sized and placed in code.
+         It swallows the tap, so opening the demo never moves the AR figure. -->
+    <View
+        android:id="@+id/demoHitArea"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:layout_gravity="top|start"
+        android:background="?android:attr/selectableItemBackground"
+        android:contentDescription="@string/preview_demo_label"
         android:visibility="invisible" />
 
     <!-- Bottom sheet, like the workout screen: Card surface, rounded top, handle, then actions. -->
@@ -108,7 +119,7 @@
             android:letterSpacing="0.08"
             android:text="@string/preview_sheet_label"
             android:textAllCaps="true"
-            android:textColor="#CBBF7A"
+            android:textColor="@color/calico_muted"
             android:textSize="13sp" />
 
         <TextView
@@ -119,7 +130,7 @@
             android:lineSpacingExtra="3dp"
             android:minLines="2"
             android:text="@string/preview_looking"
-            android:textColor="#FAF6E4"
+            android:textColor="@color/calico_ink"
             android:textSize="15sp" />
 
         <LinearLayout
@@ -148,7 +159,7 @@
                 android:stateListAnimator="@null"
                 android:text="@string/preview_start"
                 android:textAllCaps="false"
-                android:textColor="#3F3728"
+                android:textColor="@color/calico_on_accent"
                 android:textSize="17sp" />
         </LinearLayout>
     </LinearLayout>

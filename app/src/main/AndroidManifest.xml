@@ -1,6 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- The offline coach model downloads in a foreground data-sync job with a progress notification. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <queries>
@@ -18,6 +23,11 @@
         <!-- FastRPC driver for the Hexagon NPU. Vendor public libraries have to be
              declared before an app may link against them. -->
         <uses-native-library android:name="libcdsprpc.so" android:required="false" />
+        <!-- WorkManager's foreground host must declare the type the download worker requests. -->
+        <service
+            android:name="androidx.work.impl.foreground.SystemForegroundService"
+            android:foregroundServiceType="dataSync"
+            tools:node="merge" />
         <activity android:name=".voice.VoiceAgentActivity" android:exported="false" />
         <activity android:name=".CoachActivity" android:exported="false" />
         <activity android:name=".MainActivity" android:exported="true">

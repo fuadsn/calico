@@ -33,6 +33,7 @@ import androidx.camera.video.VideoCapture
 import androidx.camera.video.VideoRecordEvent
 import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.animateIntAsState
 import androidx.compose.animation.core.tween
@@ -350,7 +351,8 @@ class WorkoutActivity : ComponentActivity() {
                 else AndroidView({ previewView }, Modifier.fillMaxSize())
                 AndroidView({ overlay }, Modifier.fillMaxSize())
                 Hud()
-                if (phase == Phase.REST) Rest()
+                // Rest fades over the camera instead of cutting in.
+                AnimatedVisibility(phase == Phase.REST && stepIndex < steps.lastIndex, enter = fadeIn(Motion.fade()), exit = fadeOut(Motion.fade())) { Rest() }
                 if (!bench && phase != Phase.REST) FloatingBar(Modifier.align(Alignment.BottomCenter))
             }
             if(voiceOrbOpen) com.hackathon.calico.voice.WorkoutVoiceOrb(
@@ -397,7 +399,7 @@ class WorkoutActivity : ComponentActivity() {
             val c = cue
             var visible by remember { mutableStateOf(false) }
             LaunchedEffect(c?.second) { if (c != null) { visible = true; delay(1600); visible = false } }
-            AnimatedVisibility(visible, Modifier.align(Alignment.CenterHorizontally).padding(bottom = 16.dp), enter = fadeIn(), exit = fadeOut()) {
+            AnimatedVisibility(visible, Modifier.align(Alignment.CenterHorizontally).padding(bottom = 16.dp), enter = fadeIn(Motion.fade()), exit = fadeOut(Motion.fade())) {
                 Text(c?.first ?: "", Modifier.background(Snow, Pill).padding(horizontal = 22.dp, vertical = 12.dp), style = MaterialTheme.typography.titleLarge, color = Charcoal)
             }
             benchDone?.let { Text(it, Modifier.align(Alignment.CenterHorizontally).padding(8.dp), style = MaterialTheme.typography.titleMedium, color = Accent) }
@@ -425,7 +427,8 @@ class WorkoutActivity : ComponentActivity() {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             if (recordingNow) "■ STOP REC" else "● REC",
-                            Modifier.clickable(onClick = ::toggleRecord).padding(8.dp),
+                            Modifier.heightIn(min = 48.dp).pressable(Pill, label = if (recordingNow) "Stop recording" else "Start recording", onClick = ::toggleRecord)
+                                .background(if (recordingNow) AccentSoft else Color.Transparent).padding(horizontal = Space.l, vertical = 14.dp),
                             style = MaterialTheme.typography.labelMedium, color = if (recordingNow) Accent else Muted,
                         )
 
@@ -457,7 +460,8 @@ class WorkoutActivity : ComponentActivity() {
 
     @Composable
     private fun Rest() {
-        val next = steps[stepIndex + 1]
+        // Still composed while fading out, by which time the next step may already be the last.
+        val next = steps.getOrNull(stepIndex + 1) ?: return
         Box(Modifier.fillMaxSize().background(Bg.copy(alpha = 0.9f)), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("REST", style = MaterialTheme.typography.labelMedium, color = Ink.copy(0.7f))
@@ -543,23 +547,27 @@ class WorkoutActivity : ComponentActivity() {
                     if (pair.size == 1) Spacer(Modifier.weight(1f))
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            // Form overview with its follow-up as a secondary action, then the single primary
+            // action last, where the thumb ends up after reading the summary.
+            Spacer(Modifier.height(Space.m))
+            Column(Modifier.fillMaxWidth().background(Card, CardShape).padding(20.dp)) {
+                Text("Form overview", style = MaterialTheme.typography.titleLarge, color = Ink)
+                Text(com.hackathon.calico.coach.CoachStore(this@WorkoutActivity).overview(coachSession),
+                    style = MaterialTheme.typography.bodyMedium, color = Ink, modifier = Modifier.padding(vertical = Space.m))
+                Text("Ask offline coach", style = MaterialTheme.typography.labelLarge, color = Ink, textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth().pressable(Pill, label = "Ask offline coach about this workout") {
+                        saveCoachSnapshot()
+                        startActivity(Intent(this@WorkoutActivity, CoachActivity::class.java)
+                            .putExtra("question", "Review my whole last workout: what went well, which cues repeated, and one thing to focus on next."))
+                    }.background(AccentSoft).padding(vertical = Space.l))
+            }
+            Spacer(Modifier.height(Space.xl))
             Text(
                 "BACK HOME",
-                Modifier.fillMaxWidth().background(Snow, Pill).clickable(onClick = ::finish).padding(vertical = 20.dp),
+                Modifier.fillMaxWidth().pressable(Pill, onClick = ::finish).background(Snow).padding(vertical = 20.dp),
                 style = MaterialTheme.typography.labelLarge, color = Charcoal, textAlign = TextAlign.Center,
             )
-            Spacer(Modifier.height(12.dp))
-            Text("Form overview",style=MaterialTheme.typography.titleLarge,color=Ink)
-            Text(com.hackathon.calico.coach.CoachStore(this@WorkoutActivity).overview(coachSession),
-                style=MaterialTheme.typography.bodyMedium,color=Ink,modifier=Modifier.padding(vertical=12.dp))
-            Text("ASK OFFLINE COACH",style=MaterialTheme.typography.labelLarge,color=OnAccent,
-                textAlign=TextAlign.Center,modifier=Modifier.fillMaxWidth().background(Accent,Pill).clickable {
-                    saveCoachSnapshot()
-                    startActivity(Intent(this@WorkoutActivity,CoachActivity::class.java)
-                        .putExtra("question","Review my whole last workout: what went well, which cues repeated, and one thing to focus on next."))
-                }.padding(vertical=20.dp))
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(Space.s))
         }
     }
 

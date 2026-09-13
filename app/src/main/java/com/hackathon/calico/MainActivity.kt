@@ -7,7 +7,18 @@ import androidx.activity.ComponentActivity
 import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.Spring
@@ -49,6 +60,7 @@ import androidx.compose.material.icons.outlined.FitnessCenter
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.BarChart
 import androidx.compose.material.icons.outlined.NorthEast
+import androidx.compose.material.icons.outlined.ViewInAr
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -125,7 +137,7 @@ private fun App(resumed: Int, requestedTab: Int, navigationRequest: Int) {
         "Open coach" to { ctx.startActivity(Intent(ctx, CoachActivity::class.java)) }
     ))
     Box(Modifier.fillMaxSize().background(Bg)) {
-        Crossfade(tab, label = "tab", animationSpec = tween(220)) { t ->
+        Crossfade(tab, label = "tab", animationSpec = Motion.fade()) { t ->
             when (t) { 0 -> Home(progress, resumed) { voice = true }; 1 -> Overview(progress, resumed); else -> Exercises() }
         }
         BumpBar(TABS, if (voice) 4 else tab, Modifier.align(Alignment.BottomCenter)) { i ->
@@ -228,18 +240,23 @@ private fun Home(progress: Progress, resumed: Int, onVoice: () -> Unit) {
             enabled = daySteps.isNotEmpty(),
         ) { startRoutine(ctx, daySteps) }
 
-        Spacer(Modifier.height(16.dp))
-        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-            Text("Offline coach", style = MaterialTheme.typography.labelLarge, color = Accent,
-                modifier = Modifier.weight(1f).clip(Pill).clickable {
-                    ctx.startActivity(Intent(ctx, CoachActivity::class.java))
-                }.padding(12.dp))
-            Box(Modifier.size(48.dp).clip(CircleShape).background(Accent).clickable(onClick = onVoice),
-                contentAlignment = Alignment.Center) { Icon(Lucide.Cat, "Calico", tint = OnAccent) }
+        // Secondary to the day card: a quiet row, so coral stays on the one primary action above.
+        Spacer(Modifier.height(Space.m))
+        Row(
+            Modifier.fillMaxWidth().pressable(TileShape, label = "Open offline coach") {
+                ctx.startActivity(Intent(ctx, CoachActivity::class.java))
+            }.background(Card).padding(start = 20.dp, end = Space.xs, top = Space.xs, bottom = Space.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f)) {
+                Text("Offline coach", style = MaterialTheme.typography.titleMedium, color = Ink)
+                Text("Ask about your form · on this phone", style = MaterialTheme.typography.labelSmall, color = Muted)
+            }
+            SmallIconAction(Lucide.Cat, "Talk to Calico", Card, onVoice)
         }
 
         // calories: target / burned / remaining
-        Spacer(Modifier.height(20.dp))
+        Spacer(Modifier.height(Space.m))
         CalorieCard(KCAL_GOAL, kcalToday)
 
         // splits: two per row, calico patches in turn
@@ -253,24 +270,21 @@ private fun Home(progress: Progress, resumed: Int, onVoice: () -> Unit) {
 
         // the chosen day's plan: dark lower block with dark-grey and coral rows
         if (daySteps.isNotEmpty()) {
-        Spacer(Modifier.height(24.dp))
-        Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(28.dp)).padding(16.dp)) {
-        Text("$dayName's plan", style = MaterialTheme.typography.headlineSmall, color = Ink, modifier = Modifier.padding(start = 4.dp, bottom = 12.dp))
+        Spacer(Modifier.height(Space.xl))
+        Column(Modifier.fillMaxWidth().background(Card, RoundedCornerShape(28.dp)).padding(Space.l)) {
+        Text("$dayName's plan", style = MaterialTheme.typography.headlineSmall, color = Ink, modifier = Modifier.padding(start = Space.xs, bottom = Space.m))
         daySteps.forEachIndexed { i, step ->
             val tile = tileColor(i, AccentSoft)
             Row(
-                Modifier.fillMaxWidth().padding(bottom = 10.dp).background(tile, TileShape).padding(18.dp),
+                Modifier.fillMaxWidth().padding(bottom = 10.dp).background(tile, TileShape).padding(start = 18.dp, end = 18.dp, top = 14.dp, bottom = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
                     Text(step.exercise.label, style = MaterialTheme.typography.titleLarge, color = onTile(tile))
-                    Text("View workout", color = onTile(tile).copy(0.8f), style = MaterialTheme.typography.labelMedium,
-                        modifier = Modifier.clickable {
-                            ctx.startActivity(Intent(ctx, com.calico.roomscan.PreviewActivity::class.java)
-                                .putExtra("exercise", step.exercise.name))
-                        }.padding(vertical = 6.dp))
                     Text(if (step.warmup) "Warm-up" else "Workout", style = MaterialTheme.typography.labelSmall, color = onTile(tile).copy(0.6f))
                 }
+                ArPreviewAction(step.exercise, tile)
+                Spacer(Modifier.width(Space.xs))
                 Box(Modifier.size(58.dp).background(onTile(tile), CircleShape), contentAlignment = Alignment.Center) {
                     Text(
                         if (step.exercise.holdSec > 0) "${step.target}s" else "×${step.target}",
@@ -289,7 +303,7 @@ private fun Home(progress: Progress, resumed: Int, onVoice: () -> Unit) {
 @Composable
 private fun SplitCard(split: Split, tile: Color, modifier: Modifier, onClick: () -> Unit) {
     val fg = onTile(tile)
-    Column(modifier.clip(TileShape).background(tile).clickable(onClick = onClick).padding(18.dp)) {
+    Column(modifier.pressable(TileShape, label = "Start ${split.title}", onClick = onClick).background(tile).padding(18.dp)) {
         Icon(splitIcon(split.title), null, tint = fg, modifier = Modifier.size(28.dp))
         Spacer(Modifier.height(14.dp))
         Text(split.title, style = MaterialTheme.typography.titleLarge, color = fg)
@@ -300,13 +314,13 @@ private fun SplitCard(split: Split, tile: Color, modifier: Modifier, onClick: ()
 /** Card whose top edge dips in a valley under day [idx] of the week strip above it. Tap anywhere to start. */
 @Composable
 private fun DayCard(idx: Int, title: String, subtitle: String, enabled: Boolean, onStart: () -> Unit) {
-    val x by animateFloatAsState(idx.toFloat(), spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow), label = "dip")
+    val x by animateFloatAsState(idx.toFloat(), Motion.move(), label = "dip")
     val d = LocalDensity.current
     val shape = remember(x) {
         GenericShape { size, _ ->
             with(d) {
                 val t = DIP.toPx(); val r = 24.dp.toPx(); val w = 52.dp.toPx()
-                val cx = (WEEK_PAD + DAY / 2).toPx() + x * (size.width - (WEEK_PAD * 2 + DAY).toPx()) / 6
+                val cx = (WEEK_PAD + DAY_TARGET / 2).toPx() + x * (size.width - (WEEK_PAD * 2 + DAY_TARGET).toPx()) / 6
                 val card = Path().apply { addRoundRect(RoundRect(Rect(0f, 0f, size.width, size.height), CornerRadius(r))) }
                 val dip = Path().apply {   // rounded bowl scooped out under the chosen day
                     moveTo(cx - w, -r)
@@ -321,17 +335,23 @@ private fun DayCard(idx: Int, title: String, subtitle: String, enabled: Boolean,
         }
     }
     Row(
-        Modifier.fillMaxWidth().clip(shape).background(Card).clickable(enabled = enabled, onClick = onStart)
+        Modifier.fillMaxWidth().pressable(shape, enabled = enabled, label = "Start $title", onClick = onStart).background(Card)
             .padding(top = DIP + 18.dp, start = 22.dp, end = 18.dp, bottom = 18.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Column(Modifier.weight(1f)) {
-            Text(title, style = MaterialTheme.typography.headlineSmall, color = Ink)
-            Spacer(Modifier.height(2.dp))
-            Text(subtitle, style = MaterialTheme.typography.bodyMedium, color = Muted)
+        // Switching days cross-fades the text instead of snapping it.
+        AnimatedContent(title to subtitle, Modifier.weight(1f), transitionSpec = { fadeIn(Motion.fade()) togetherWith fadeOut(Motion.fade()) },
+            label = "day") { (heading, detail) ->
+            Column {
+                Text(heading, style = MaterialTheme.typography.headlineSmall, color = Ink)
+                Spacer(Modifier.height(2.dp))
+                Text(detail, style = MaterialTheme.typography.bodyMedium, color = Muted)
+            }
         }
-        if (enabled) Box(Modifier.size(48.dp).background(Accent, CircleShape), contentAlignment = Alignment.Center) {
-            Icon(Icons.Outlined.NorthEast, "Start", tint = OnAccent, modifier = Modifier.size(22.dp))
+        AnimatedVisibility(enabled, enter = fadeIn(Motion.fade()) + scaleIn(Motion.press()), exit = fadeOut(Motion.fade()) + scaleOut(Motion.fade())) {
+            Box(Modifier.size(48.dp).background(Accent, CircleShape), contentAlignment = Alignment.Center) {
+                Icon(Icons.Outlined.NorthEast, null, tint = OnAccent, modifier = Modifier.size(22.dp))
+            }
         }
     }
 }
@@ -340,7 +360,7 @@ private fun DayCard(idx: Int, title: String, subtitle: String, enabled: Boolean,
 @Composable
 private fun CalorieCard(target: Int, burned: Int) {
     val remaining = maxOf(0, target - burned)
-    val f by animateFloatAsState((burned.toFloat() / target).coerceIn(0f, 1f), spring(stiffness = Spring.StiffnessLow), label = "kcal")
+    val f by animateFloatAsState((burned.toFloat() / target).coerceIn(0f, 1f), Motion.fill(), label = "kcal")
     Row(Modifier.fillMaxWidth().background(Card, CardShape).padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             Legend(Ink, true, "$target Kcal", "Target")
@@ -386,6 +406,7 @@ private fun Legend(color: Color, hollow: Boolean, value: String, label: String) 
 private val WEEK_PAD = 6.dp    // week strip inset
 private val DIP = 22.dp        // valley depth
 private val DAY = 38.dp        // day circle
+private val DAY_TARGET = 48.dp // day column, the touch target the dip centres under
 
 /** Mon..Sun of this week: letters, then numbers. Only the chosen day is circled; done days read coral. */
 @Composable
@@ -396,20 +417,23 @@ private fun WeekStrip(dates: Set<LocalDate>, selected: LocalDate, onSelect: (Loc
         for (i in 0..6) {
             val day = monday.plusDays(i.toLong())
             val on = day == selected
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            val fill by animateColorAsState(if (on) Accent else Color.Transparent, Motion.fade(), label = "day-fill")
+            val number by animateColorAsState(
+                if (on) OnAccent else if (day in dates) Accent else if (day <= today) Ink else Muted, Motion.fade(), label = "day-text")
+            val name = day.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.getDefault())
+            // The whole column is the target (48dp wide), not just the 38dp circle.
+            Column(
+                Modifier.width(48.dp).clip(TileShape).clickable(onClickLabel = "Show $name's workout") { onSelect(day) }
+                    .semantics { contentDescription = "$name ${day.dayOfMonth}" + if (day in dates) ", workout done" else ""; this.selected = on },
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
                 Text(
                     day.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.getDefault()).take(1),
                     style = MaterialTheme.typography.labelLarge, color = if (day == today) Ink else Muted,
                 )
                 Spacer(Modifier.height(6.dp))
-                Box(
-                    Modifier.size(DAY).clip(CircleShape).background(if (on) Accent else Color.Transparent).clickable { onSelect(day) },
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Text(
-                        "${day.dayOfMonth}", style = MaterialTheme.typography.titleMedium,
-                        color = if (on) OnAccent else if (day in dates) Accent else if (day <= today) Ink else Muted,
-                    )
+                Box(Modifier.size(DAY).background(fill, CircleShape), contentAlignment = Alignment.Center) {
+                    Text("${day.dayOfMonth}", style = MaterialTheme.typography.titleMedium, color = number)
                 }
             }
         }
@@ -563,7 +587,7 @@ private fun Heatmap(dates: Set<LocalDate>, today: LocalDate) {
 @Composable
 private fun Gauge(done: Int, goal: Int) {
     val target = (done.toFloat() / goal).coerceIn(0f, 1f)
-    val f by animateFloatAsState(target, spring(stiffness = Spring.StiffnessLow), label = "gauge")
+    val f by animateFloatAsState(target, Motion.fill(), label = "gauge")
     Box(Modifier.fillMaxWidth().height(120.dp), contentAlignment = Alignment.BottomCenter) {
         Canvas(Modifier.size(220.dp, 120.dp)) {
             val s = 30.dp.toPx(); val inset = s / 2
@@ -646,32 +670,48 @@ private fun Bars(values: List<Float>, color: Color) {
 
 // ---------------- Exercises ----------------
 
-/** Every exercise, free mode: tap one and count until you stop. */
+/** Small AR button for an exercise row. Takes its own tap, so the row keeps starting the workout. */
+@Composable
+private fun ArPreviewAction(exercise: Exercise, surface: Color) {
+    val ctx = LocalContext.current
+    SmallIconAction(Icons.Outlined.ViewInAr, "View ${exercise.label} in AR", surface) {
+        ctx.startActivity(Intent(ctx, com.calico.roomscan.PreviewActivity::class.java).putExtra("exercise", exercise.name))
+    }
+}
+
+/**
+ * Every exercise, free mode: tap one and count until you stop. A long list of equals, so the
+ * rows share one surface; colour is left for the actions on them.
+ */
 @Composable
 private fun Exercises() {
     val ctx = LocalContext.current
     Column(
-        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding().padding(horizontal = 20.dp).padding(top = 12.dp, bottom = 120.dp),
+        Modifier.fillMaxSize().verticalScroll(rememberScrollState()).statusBarsPadding().padding(horizontal = Space.gutter).padding(top = Space.m, bottom = 120.dp),
     ) {
         Text("Exercises", style = MaterialTheme.typography.headlineLarge, color = Ink)
         Text("Free mode, no target. Tap one to start counting.", style = MaterialTheme.typography.bodyMedium, color = Muted)
-        Spacer(Modifier.height(16.dp))
-        Exercise.values().forEachIndexed { i, e ->
-            val tile = tileColor(i)
+        Spacer(Modifier.height(Space.l))
+        Exercise.values().forEach { e ->
             Row(
-                Modifier.fillMaxWidth().padding(bottom = 10.dp).clip(TileShape).background(tile)
-                    .clickable { ctx.startActivity(Intent(ctx, WorkoutActivity::class.java).putExtra("exercise", e.name)) }
-                    .padding(18.dp),
+                Modifier.fillMaxWidth().padding(bottom = 10.dp)
+                    .pressable(TileShape, label = "Start ${e.label}") {
+                        ctx.startActivity(Intent(ctx, WorkoutActivity::class.java).putExtra("exercise", e.name))
+                    }
+                    .background(Card).padding(start = 18.dp, end = Space.s, top = Space.s, bottom = Space.s),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                Column(Modifier.weight(1f)) {
-                    Text(e.label, style = MaterialTheme.typography.titleLarge, color = onTile(tile))
+                Column(Modifier.weight(1f).padding(vertical = Space.s)) {
+                    Text(e.label, style = MaterialTheme.typography.titleLarge, color = Ink)
                     Text(
                         if (e.holdSec > 0) "Hold · ${e.holdSec}s" else "Reps · ${e.cue.lowercase()}",
-                        style = MaterialTheme.typography.labelSmall, color = onTile(tile).copy(0.6f),
+                        style = MaterialTheme.typography.labelSmall, color = Muted,
                     )
                 }
-                Icon(Icons.Outlined.NorthEast, null, tint = onTile(tile).copy(0.6f))
+                ArPreviewAction(e, Card)
+                Box(Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                    Icon(Icons.Outlined.NorthEast, null, tint = Muted)
+                }
             }
         }
     }
@@ -702,7 +742,9 @@ private fun JourneyRow(i: Int, level: Level, state: NodeState, last: Boolean, on
             if (i > 0) drawLine(col, Offset(cx, 0f), Offset(cx, cy), stroke, pathEffect = dash)
         }
         Column(
-            Modifier.align(Alignment.Center).offset(x = wobble(i)).clickable(onClick = onClick),
+            Modifier.align(Alignment.Center).offset(x = wobble(i))
+                .pressable(TileShape, label = if (state == NodeState.LOCKED) "Locked: ${level.title}" else "Start ${level.title}", onClick = onClick)
+                .padding(Space.s),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
             Box(

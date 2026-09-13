@@ -78,6 +78,8 @@ dependencies {
     implementation("androidx.camera:camera-video:$camerax")
     implementation("androidx.activity:activity-compose:1.11.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.9.4")
+    // Offline coach model download that survives leaving the screen, locking or a killed process.
+    implementation("androidx.work:work-runtime-ktx:2.10.5")
     implementation(platform("androidx.compose:compose-bom:2025.10.01"))
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")

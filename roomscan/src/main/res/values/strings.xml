@@ -2,6 +2,9 @@
 <resources>
     <string name="model_credits">Model credits</string>
     <string name="model_credits_details"><![CDATA[Animated Base Character by <a href="https://poly.pizza/m/cwYvO5UauX">Quaternius</a>, licensed <a href="https://creativecommons.org/licenses/by/3.0/">CC BY 3.0</a>. Original model file; Calico supplies exercise poses and simplified shading.<br/><br/>Fallback: Cesium Man by Cesium, <a href="https://github.com/KhronosGroup/glTF-Sample-Models">Khronos sample models</a>, <a href="https://creativecommons.org/licenses/by/4.0/">CC BY 4.0</a>.]]></string>
+    <string name="scan_title">Room scan</string>
+    <string name="scan_subtitle">Find a clear spot on the floor</string>
+    <string name="scan_sheet_label">Scanning</string>
     <string name="scan_looking">Move your phone slowly across the floor</string>
     <string name="scan_points_only">Tracking %1$d details. Move sideways while aiming at the floor to find a surface.</string>
     <string name="scan_surfaces">%1$d surfaces mapped. Keep scanning the floor to grow the workout area.</string>
@@ -21,6 +24,7 @@
     <string name="preview_subtitle">See it in your room</string>
     <string name="preview_sheet_label">AR preview</string>
     <string name="preview_demo_label">3D demo</string>
+    <string name="preview_demo_close">3D demo · tap to close</string>
     <string name="preview_looking">Point at the floor to stand the demo up</string>
     <string name="preview_pending">Aim at the floor or tap a mapped surface to place the demo.</string>
     <string name="preview_offscreen">The demo is placed outside this view. Turn toward it or tap a surface to move it.</string>

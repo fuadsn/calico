@@ -75,38 +75,92 @@ class CoachModel(private val context: Context) {
         adopt(uri)
     }
 
-    /** Downloads into a document the user chose, so the file outlives the app. */
-    suspend fun download(target: Uri, progress: (Float) -> Unit) {
+    /** The downloaded bytes are not the pinned model; the partial file is useless and is deleted. */
+    class ModelMismatchException(message: String) : IllegalStateException(message)
+
+    /** Keeps read/write access to the download target beyond the picker's temporary grant. */
+    fun retain(target: Uri) {
         context.contentResolver.takePersistableUriPermission(target,
             Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-        val connection = java.net.URL(DOWNLOAD_URL).openConnection() as HttpURLConnection
-        connection.connectTimeout = 30_000; connection.readTimeout = 30_000
-        try {
-            check(connection.responseCode in 200..299) { "Download failed (${connection.responseCode}). Please retry." }
-            val digest = MessageDigest.getInstance("SHA-256")
-            var total = 0L
-            connection.inputStream.use { input ->
-                (context.contentResolver.openOutputStream(target, "wt") ?: error("Could not write to the chosen location.")).use { output ->
-                    val buffer = ByteArray(1024 * 1024)
-                    var count = input.read(buffer)
-                    while (count != -1) {
-                        coroutineContext.ensureActive()
-                        total += count
-                        check(total <= SIZE) { "The download did not match the supported Qwen model." }
-                        output.write(buffer, 0, count); digest.update(buffer, 0, count)
-                        progress(total.toFloat() / SIZE)
-                        count = input.read(buffer)
+    }
+
+    /**
+     * Downloads into a document the user chose, so the file outlives the app. Resumable: bytes
+     * already in [target] are re-hashed and the rest is fetched with an HTTP Range request, so a
+     * download interrupted by a lost network or a killed process continues instead of restarting.
+     * Network errors leave the partial file for the next attempt; a checksum mismatch deletes it.
+     */
+    suspend fun download(target: Uri, progress: suspend (Float) -> Unit) {
+        runCatching { retain(target) }  // already held when started from the setup screen
+        val digest = MessageDigest.getInstance("SHA-256")
+        var total = resumeFrom(target, digest)
+        if (total in 1 until SIZE && !canAppend(target)) { digest.reset(); total = 0 }  // provider cannot append: start over
+        if (total < SIZE) {
+            val connection = java.net.URL(DOWNLOAD_URL).openConnection() as HttpURLConnection
+            connection.connectTimeout = 30_000; connection.readTimeout = 30_000
+            if (total > 0) connection.setRequestProperty("Range", "bytes=$total-")
+            try {
+                val code = connection.responseCode
+                if (total > 0 && code == HttpURLConnection.HTTP_OK) {
+                    // The server ignored the range: start over from the first byte.
+                    digest.reset(); total = 0
+                }
+                if (code !in 200..299) throw java.io.IOException("Download failed ($code). It will retry.")
+                val mode = if (total > 0) "wa" else "wt"
+                connection.inputStream.use { input ->
+                    (context.contentResolver.openOutputStream(target, mode) ?: error("Could not write to the chosen location.")).use { output ->
+                        val buffer = ByteArray(1024 * 1024)
+                        var count = input.read(buffer)
+                        while (count != -1) {
+                            coroutineContext.ensureActive()
+                            total += count
+                            if (total > SIZE) mismatch(target, "The download did not match the supported Qwen model.")
+                            output.write(buffer, 0, count); digest.update(buffer, 0, count)
+                            progress(total.toFloat() / SIZE)
+                            count = input.read(buffer)
+                        }
+                        output.flush()
                     }
-                    output.flush()
+                }
+            } finally { connection.disconnect() }
+        }
+        if (total != SIZE) throw java.io.IOException("The download ended early. It will retry.")
+        if (digest.digest().hex() != SHA256) mismatch(target, "Model check failed. Please download again.")
+        prefs.edit().putString("verified", stamp(target)).apply()
+        adopt(target)
+    }
+
+    /** Hashes what an earlier attempt already wrote and returns how many bytes that is. */
+    private suspend fun resumeFrom(target: Uri, digest: MessageDigest): Long {
+        val existing = runCatching { querySize(target) }.getOrNull() ?: 0L
+        if (existing <= 0L) return 0L
+        if (existing > SIZE) return 0L.also { digest.reset() }  // not ours; "wt" rewrites it
+        var read = 0L
+        runCatching {
+            context.contentResolver.openInputStream(target)?.use { input ->
+                val buffer = ByteArray(1024 * 1024)
+                var count = input.read(buffer)
+                while (count != -1 && read < existing) {
+                    coroutineContext.ensureActive()
+                    digest.update(buffer, 0, count); read += count
+                    count = input.read(buffer)
                 }
             }
-            check(total == SIZE && digest.digest().hex() == SHA256) { "Model check failed. Please download again." }
-            prefs.edit().putString("verified", stamp(target)).apply()
-            adopt(target)
-        } catch (e: Exception) {
-            runCatching { DocumentsContract.deleteDocument(context.contentResolver, target) }
-            throw e
-        } finally { connection.disconnect() }
+        }.onFailure { if (it is kotlinx.coroutines.CancellationException) throw it; digest.reset(); read = 0L }
+        return read
+    }
+
+    private fun canAppend(target: Uri): Boolean =
+        runCatching { context.contentResolver.openOutputStream(target, "wa")?.use { } != null }.getOrDefault(false)
+
+    /** Removes a partial download, for a user cancel or a mismatch. */
+    fun discard(target: Uri) {
+        runCatching { DocumentsContract.deleteDocument(context.contentResolver, target) }
+    }
+
+    private fun mismatch(target: Uri, message: String): Nothing {
+        discard(target)
+        throw ModelMismatchException(message)
     }
 
     private fun adopt(uri: Uri) {

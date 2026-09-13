@@ -12,7 +12,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
-data class CoachState(val ready: Boolean, val busy: Boolean = false, val progress: Float? = null,
+data class CoachState(val ready: Boolean, val busy: Boolean = false, val downloading: Boolean = false, val progress: Float? = null,
     val status: String = "", val error: String? = null, val messages: List<CoachMessage> = emptyList(),
     val snapshot: CoachSnapshot? = null, val completedAnswer: String? = null, val overview: String = "", val arPlan: String? = null)
 
@@ -30,15 +30,60 @@ class CoachViewModel(application: Application) : AndroidViewModel(application) {
             messages=(it.messages+CoachMessage(true,question)+CoachMessage(false,answer)).takeLast(20)) }
         store.saveMessages(mutable.value.messages)
     }
-    /** [target] is the document the user created for the download; the file stays theirs. */
-    fun download(target: Uri) = transfer { progress -> model.download(target,progress) }
+    init { observeDownload() }
+
+    /**
+     * [target] is the document the user created for the download; the file stays theirs. The
+     * download itself runs in [ModelDownloadWorker], so leaving this screen, switching apps or
+     * locking the phone does not stop it; this view model only mirrors its progress.
+     */
+    fun download(target: Uri) {
+        if (mutable.value.busy) return
+        try { model.retain(target) }   // the picker's grant ends with the activity; keep it for the worker
+        catch (e: SecurityException) { mutable.update { it.copy(error="Calico cannot keep access to that location. Choose another folder.") }; return }
+        mutable.update { it.copy(busy=true,downloading=true,error=null,progress=0f,status="Starting download…") }
+        ModelDownloadWorker.start(getApplication(), target)
+    }
+
+    /** Explicit cancel from the user; the partial file is deleted. */
+    fun cancelDownload() { ModelDownloadWorker.cancel(getApplication()) }
+
+    private fun observeDownload() {
+        val seen = getApplication<Application>().getSharedPreferences("coach_model", 0)
+        viewModelScope.launch {
+            androidx.work.WorkManager.getInstance(getApplication()).getWorkInfosForUniqueWorkFlow(ModelDownloadWorker.WORK_NAME).collect { infos ->
+                val info = infos.lastOrNull() ?: return@collect
+                val key = "${info.id}:${info.state}"
+                when (info.state) {
+                    androidx.work.WorkInfo.State.RUNNING, androidx.work.WorkInfo.State.ENQUEUED, androidx.work.WorkInfo.State.BLOCKED -> {
+                        val fraction = info.progress.getFloat(ModelDownloadWorker.KEY_PROGRESS, mutable.value.progress ?: 0f)
+                        val waiting = info.state != androidx.work.WorkInfo.State.RUNNING
+                        mutable.update { it.copy(busy=true,downloading=true,error=null,progress=fraction,
+                            status=if(waiting && info.runAttemptCount>0) "Waiting for a connection to resume… ${(fraction*100).toInt()}%"
+                                else "Downloading model… ${(fraction*100).toInt()}% · continues if you leave or lock your phone") }
+                    }
+                    else -> {
+                        // Finished work stays queryable for a while; report each outcome once.
+                        val wasActive = mutable.value.downloading
+                        if (!wasActive && seen.getString("download_reported", null) == key) return@collect
+                        seen.edit().putString("download_reported", key).apply()
+                        mutable.update { when (info.state) {
+                            androidx.work.WorkInfo.State.SUCCEEDED -> it.copy(status="Ready. The model stays in ${model.location} even if Calico is reinstalled.")
+                            androidx.work.WorkInfo.State.FAILED -> it.copy(error=info.outputData.getString(ModelDownloadWorker.KEY_ERROR) ?: "Could not download the model. Please retry.")
+                            else -> it.copy(status="Download cancelled. You can start it again any time.")
+                        }.copy(busy=false,downloading=false,progress=null,ready=model.present()) }
+                    }
+                }
+            }
+        }
+    }
     /** References an existing model file in place, then verifies it once. */
     fun link(uri: Uri) = transfer { progress ->
         model.link(uri)
         mutable.update { it.copy(status="Checking the model file…") }
         model.verify()
     }
-    private fun transfer(action: suspend ((Float)->Unit)->Unit) {
+    private fun transfer(action: suspend (suspend (Float)->Unit)->Unit) {
         if (mutable.value.busy) return
         mutable.update { it.copy(busy=true,error=null,progress=0f,status="Preparing offline coach…") }
         task = viewModelScope.launch {

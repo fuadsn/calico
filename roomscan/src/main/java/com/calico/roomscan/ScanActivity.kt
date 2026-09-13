@@ -96,6 +96,7 @@ class ScanActivity : Activity(), GLSurfaceView.Renderer {
         nextButton.setOnClickListener { goToWorkout() }
         skipButton.setOnClickListener { goToWorkout() }
         applyWindowInsets()
+        ViewMotion.riseIn(actionBar)
     }
 
     /**
@@ -104,8 +105,8 @@ class ScanActivity : Activity(), GLSurfaceView.Renderer {
      */
     private fun applyWindowInsets() {
         val density = resources.displayMetrics.density
-        val pad = (16 * density).toInt()
-        val buttonGap = (24 * density).toInt()
+        val pad = (20 * density).toInt()
+        val buttonGap = (20 * density).toInt()
 
         window.decorView.setOnApplyWindowInsetsListener { _, insets ->
             val top: Int
@@ -122,10 +123,9 @@ class ScanActivity : Activity(), GLSurfaceView.Renderer {
                 @Suppress("DEPRECATION")
                 bottom = insets.systemWindowInsetBottom
             }
-            topBar.setPadding(pad, top + pad, pad, pad)
-            val params = actionBar.layoutParams as FrameLayout.LayoutParams
-            params.bottomMargin = bottom + buttonGap
-            actionBar.layoutParams = params
+            topBar.setPadding(pad, top + pad, pad, pad * 2)
+            // The sheet runs to the screen edge; only its content clears the gesture bar.
+            actionBar.setPadding(actionBar.paddingLeft, actionBar.paddingTop, actionBar.paddingRight, bottom + buttonGap)
             insets
         }
     }
@@ -296,32 +296,23 @@ class ScanActivity : Activity(), GLSurfaceView.Renderer {
             return
         }
 
+        best.plane.centerPose.toMatrix(bestPlaneMatrix, 0)
+        val seconds = (SystemClock.uptimeMillis() - startedAtMs) / 1000f
+        interaction.advance(seconds)
+        interaction.transform(bestPlaneMatrix)
+        val rigged = figure?.takeIf { it.isUsable }
+        if (rigged != null) rigged.draw(viewProjectionMatrix, bestPlaneMatrix, seconds)
+        else avatarRenderer.draw(viewProjectionMatrix, bestPlaneMatrix, seconds)
+        interaction.bounds(viewProjectionMatrix, bestPlaneMatrix, rigged?.bounds ?: avatarRenderer.bounds,
+            viewportWidth, viewportHeight)
+
         // Require the spot to hold still for a moment so a flickering early plane
         // does not unlock the button and then vanish.
         val stable = stability.observe(best.plane, best.plane.centerPose.ty(), frame.timestamp)
         if (stable) RoomSession.select(best.plane)
-
-        // Stand on the fixed anchor, never on the plane's centre: the centre moves every time
-        // the floor map grows, which dragged the figure across the room.
-        val spot = RoomSession.selectedAnchor?.takeIf { stable && it.trackingState == TrackingState.TRACKING }
-        if (spot != null) {
-            val position = spot.pose.translation
-            Matrix.setIdentityM(bestPlaneMatrix, 0)
-            Matrix.translateM(bestPlaneMatrix, 0, position[0], best.plane.centerPose.ty(), position[2])
-            val seconds = (SystemClock.uptimeMillis() - startedAtMs) / 1000f
-            interaction.advance(seconds)
-            interaction.transform(bestPlaneMatrix)
-            val rigged = figure?.takeIf { it.isUsable }
-            if (rigged != null) rigged.draw(viewProjectionMatrix, bestPlaneMatrix, seconds)
-            else avatarRenderer.draw(viewProjectionMatrix, bestPlaneMatrix, seconds)
-            interaction.bounds(viewProjectionMatrix, bestPlaneMatrix, rigged?.bounds ?: avatarRenderer.bounds,
-                viewportWidth, viewportHeight)
-        } else {
-            interaction.suspend()
-        }
         if (stable != foundSpot) {
             foundSpot = stable
-            runOnUiThread { nextButton.visibility = if (stable) View.VISIBLE else View.GONE }
+            runOnUiThread { ViewMotion.fade(nextButton, stable) }
         }
 
         postStatus(
@@ -348,7 +339,7 @@ class ScanActivity : Activity(), GLSurfaceView.Renderer {
         stability.reset()
         if (foundSpot) {
             foundSpot = false
-            runOnUiThread { nextButton.visibility = View.GONE }
+            runOnUiThread { ViewMotion.fade(nextButton, false) }
         }
     }
 

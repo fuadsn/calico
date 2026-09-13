@@ -6,7 +6,15 @@ import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
+import androidx.compose.material.icons.outlined.MoreVert
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
@@ -33,7 +41,15 @@ class CoachActivity : ComponentActivity() {
     // Both keep the model in the user's storage: the download goes into a document they
     // create, and an existing file is referenced in place rather than copied.
     private val locator = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri -> uri?.let { coach.link(it) } }
-    private val downloader = registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri -> uri?.let { coach.download(it) } }
+    private val downloader = registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+        uri ?: return@registerForActivityResult
+        coach.download(uri)
+        // The download runs in the background with a progress notification; ask once so it is visible.
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED)
+            notifications.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+    }
+    private val notifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge(statusBarStyle=SystemBarStyle.dark(0),navigationBarStyle=SystemBarStyle.dark(0))
@@ -64,7 +80,8 @@ class CoachActivity : ComponentActivity() {
                         put("Explain my cues") { coach.send("Explain my latest recorded form cues and what I should check next.") }
                         if(draft.isNotBlank()) put("Send") { sendMessage(draft); draft="" }
                     }
-                } else put("Stop",coach::stop)
+                } else if(state.downloading) put("Cancel download",coach::cancelDownload)
+                else put("Stop",coach::stop)
                 if(overview) {
                     put("Close") { overview=false }
                     put("Ask coach") { overview=false; coach.send("Review my whole last workout and the repeated cues. What should I focus on next?") }
@@ -84,70 +101,93 @@ class CoachActivity : ComponentActivity() {
             LaunchedEffect(state.messages.lastOrNull()?.text) {
                 if(state.messages.isNotEmpty()) list.animateScrollToItem(state.messages.lastIndex)
             }
-            Column(Modifier.fillMaxSize().background(Bg).safeDrawingPadding().imePadding().padding(horizontal=20.dp)) {
-                Row(Modifier.fillMaxWidth().padding(vertical=12.dp),verticalAlignment=Alignment.CenterVertically) {
-                    TextButton(onClick=::finish) { Text("Back",color=Ink) }
-                    Column(Modifier.weight(1f)) {
+            Column(Modifier.fillMaxSize().background(Bg).safeDrawingPadding().imePadding().padding(horizontal=Space.gutter)) {
+                // Header: back, title, and one overflow menu for the secondary actions, so the
+                // conversation stays the focus instead of a grid of equal-weight text buttons.
+                var menu by remember { mutableStateOf(false) }
+                Row(Modifier.fillMaxWidth().padding(vertical=Space.s),verticalAlignment=Alignment.CenterVertically) {
+                    IconButton(onClick=::finish) { Icon(Icons.AutoMirrored.Outlined.ArrowBack,"Back",tint=Ink) }
+                    Column(Modifier.weight(1f).padding(start=Space.xs)) {
                         Text("Offline coach",style=MaterialTheme.typography.headlineSmall,color=Ink)
                         Text("Private · On this phone",style=MaterialTheme.typography.labelSmall,color=Muted)
                     }
-                    TextButton(onClick=coach::clear,enabled=!state.busy) { Text("Clear") }
+                    Box {
+                        IconButton(onClick={ menu=true }) { Icon(Icons.Outlined.MoreVert,"More actions",tint=Ink) }
+                        DropdownMenu(expanded=menu,onDismissRequest={ menu=false },containerColor=Card) {
+                            DropdownMenuItem(text={ Text("Workout overview") },onClick={ menu=false; overview=true })
+                            DropdownMenuItem(text={ Text("Analyze room") },enabled=state.ready && !state.busy,onClick={ menu=false; coach.analyzeRoom() })
+                            DropdownMenuItem(text={ Text(if(setup) "Hide setup" else "Model setup") },enabled=!state.busy,onClick={ menu=false; setup=!setup })
+                            DropdownMenuItem(text={ Text("Clear conversation") },enabled=!state.busy,onClick={ menu=false; coach.clear() })
+                            HorizontalDivider(color=Line)
+                            DropdownMenuItem(text={ Text("About & licenses") },onClick={ menu=false; about=true })
+                        }
+                    }
                 }
-                Row {
-                    TextButton(onClick={ setup=!setup },enabled=!state.busy) { Text(if(setup) "Hide setup" else "Model setup") }
-                    TextButton(onClick={ about=true }) { Text("About & licenses") }
+                AnimatedVisibility(state.arPlan!=null,enter=fadeIn(Motion.fade())+expandVertically(Motion.fade()),exit=fadeOut(Motion.fade())+shrinkVertically(Motion.fade())) {
+                    Button(onClick={ coach.applyRoomPlan()?.let(::startActivity) },enabled=!state.busy,modifier=Modifier.fillMaxWidth().padding(bottom=Space.s),
+                        shape=Pill,colors=ButtonDefaults.buttonColors(containerColor=Accent,contentColor=OnAccent)) { Text("Preview proposal in AR") }
                 }
-                Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
-                    TextButton(onClick={ overview=true }) { Text("Workout overview") }
-                    TextButton(onClick=coach::analyzeRoom,enabled=state.ready && !state.busy) { Text("Analyze room") }
-                }
-                if(state.arPlan!=null) Button(onClick={ coach.applyRoomPlan()?.let(::startActivity) },enabled=!state.busy) { Text("Preview proposal in AR") }
-                if(setup) TextButton(onClick=coach::clearRoom,enabled=!state.busy) { Text("Forget saved room") }
-                if(!state.ready || setup) {
-                    Column(Modifier.fillMaxWidth().background(Charcoal,CardShape).padding(20.dp)) {
+                AnimatedVisibility(!state.ready || setup,enter=fadeIn(Motion.fade())+expandVertically(Motion.fade()),exit=fadeOut(Motion.fade())+shrinkVertically(Motion.fade())) {
+                    Column(Modifier.fillMaxWidth().background(Card,CardShape).padding(20.dp)) {
                         Text("Meet your offline coach",style=MaterialTheme.typography.titleLarge)
-                        Text("Ask exercise questions and understand your saved form cues. Download the 2.38 GB model once into a folder you choose, or locate a copy already on this phone. The file stays in your storage, so reinstalling Calico never deletes it. Keep this screen open during setup.",Modifier.padding(vertical=12.dp))
+                        Text("Ask exercise questions and understand your saved form cues. Download the 2.38 GB model once into a folder you choose, or locate a copy already on this phone. The file stays in your storage, so reinstalling Calico never deletes it. The download keeps going in the background, even if you leave Calico or lock your phone.",Modifier.padding(vertical=12.dp))
                         Button(onClick={ downloader.launch(CoachModel.NAME) },enabled=!state.busy,modifier=Modifier.fillMaxWidth(),
                             colors=ButtonDefaults.buttonColors(containerColor=Accent),shape=Pill) { Text("Download offline coach") }
-                        OutlinedButton(onClick={ locator.launch(arrayOf("*/*")) },enabled=!state.busy,modifier=Modifier.fillMaxWidth(),shape=Pill) { Text("Locate model file") }
+                        OutlinedButton(onClick={ locator.launch(arrayOf("*/*")) },enabled=!state.busy,modifier=Modifier.fillMaxWidth(),shape=Pill) { Text("Locate model file",color=Ink) }
+                        if(setup) TextButton(onClick=coach::clearRoom,enabled=!state.busy) { Text("Forget saved room",color=Muted) }
                         Text("Qwen3-4B Instruct · Apache 2.0 · runs on this phone's NPU",style=MaterialTheme.typography.labelSmall,color=Muted)
                     }
                 }
                 state.snapshot?.let { s ->
-                    Column(Modifier.fillMaxWidth().padding(top=10.dp).background(Slate,TileShape).padding(14.dp)) {
-                        Text("Latest exercise · ${CoachKnowledge.label(s.exercise)}",style=MaterialTheme.typography.titleMedium)
-                        Text("${s.count} ${if(s.hold) "seconds held" else "reps"} · ${DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.SHORT).format(Date(s.timeMs))}",style=MaterialTheme.typography.labelSmall)
-                        Text(s.cues.keys.joinToString().ifEmpty { "No form cues recorded" },style=MaterialTheme.typography.bodyMedium)
-                        Row {
-                            TextButton(onClick={ coach.send("Explain my latest recorded form cues and what I should check next.") },enabled=state.ready && !state.busy) { Text("Explain my cues") }
-                            TextButton(onClick=coach::forgetWorkout,enabled=!state.busy) { Text("Forget") }
+                    Column(Modifier.fillMaxWidth().padding(top=Space.s).background(Card,TileShape).padding(Space.l)) {
+                        Text("LATEST EXERCISE",style=MaterialTheme.typography.labelSmall,color=Muted)
+                        Text(CoachKnowledge.label(s.exercise),style=MaterialTheme.typography.titleMedium,color=Ink)
+                        Text("${s.count} ${if(s.hold) "seconds held" else "reps"} · ${DateFormat.getDateTimeInstance(DateFormat.SHORT,DateFormat.SHORT).format(Date(s.timeMs))}",style=MaterialTheme.typography.labelSmall,color=Muted)
+                        Text(s.cues.keys.joinToString().ifEmpty { "No form cues recorded" },style=MaterialTheme.typography.bodyMedium,color=Ink,modifier=Modifier.padding(top=Space.xs))
+                        Row(verticalAlignment=Alignment.CenterVertically) {
+                            TextButton(onClick={ coach.send("Explain my latest recorded form cues and what I should check next.") },enabled=state.ready && !state.busy) { Text("Explain my cues",color=Accent) }
+                            Spacer(Modifier.weight(1f))
+                            TextButton(onClick=coach::forgetWorkout,enabled=!state.busy) { Text("Forget",color=Muted) }
                         }
                     }
                 }
-                state.progress?.let { LinearProgressIndicator(progress={ it },modifier=Modifier.fillMaxWidth().padding(top=10.dp)) }
-                if(state.error!=null) Text(state.error!!,color=MaterialTheme.colorScheme.error,modifier=Modifier.padding(vertical=8.dp))
+                state.progress?.let { LinearProgressIndicator(progress={ it },color=Accent,trackColor=Line,modifier=Modifier.fillMaxWidth().padding(top=Space.m)) }
+                if(state.downloading) Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+                    Text(state.status,style=MaterialTheme.typography.labelSmall,color=Muted,modifier=Modifier.weight(1f))
+                    TextButton(onClick=coach::cancelDownload) { Text("Cancel download",color=Accent) }
+                }
+                AnimatedVisibility(state.error!=null,enter=fadeIn(Motion.fade()),exit=fadeOut(Motion.fade())) {
+                    Text(state.error.orEmpty(),color=MaterialTheme.colorScheme.error,modifier=Modifier.padding(vertical=Space.s))
+                }
                 if(state.messages.isEmpty() && state.ready) {
-                    Text("What would you like to work on?",style=MaterialTheme.typography.titleLarge,modifier=Modifier.padding(top=20.dp,bottom=8.dp))
+                    Text("What would you like to work on?",style=MaterialTheme.typography.titleLarge,color=Ink,modifier=Modifier.padding(top=20.dp,bottom=Space.s))
+                    // Suggestions read as tappable chips, not as plain links.
                     listOf("Why might my reps not count?","How do I do a pushup?","What does Go deeper mean for squats?").forEach { question ->
-                        TextButton(onClick={ coach.send(question) },enabled=!state.busy) { Text(question,color=Ink) }
+                        Text(question,style=MaterialTheme.typography.bodyLarge,color=Ink,
+                            modifier=Modifier.padding(bottom=Space.s).pressable(Pill,enabled=!state.busy) { coach.send(question) }
+                                .background(Card).padding(horizontal=Space.l,vertical=Space.m))
                     }
                 }
-                LazyColumn(state=list,modifier=Modifier.weight(1f).fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(12.dp),contentPadding=PaddingValues(vertical=12.dp)) {
+                LazyColumn(state=list,modifier=Modifier.weight(1f).fillMaxWidth(),verticalArrangement=Arrangement.spacedBy(Space.m),contentPadding=PaddingValues(vertical=Space.m)) {
                     itemsIndexed(state.messages) { _, message ->
-                        Column(Modifier.fillMaxWidth().background(if(message.user) Charcoal else Card,TileShape).padding(16.dp)) {
-                            Text(if(message.user) "You" else "Calico",style=MaterialTheme.typography.labelSmall,color=Muted)
-                            Text(message.text.ifEmpty { "Preparing your answer…" },style=MaterialTheme.typography.bodyLarge,color=Ink,modifier=Modifier.padding(top=6.dp))
+                        // Your messages sit on the right in the nested grey, the coach's on the left.
+                        Box(Modifier.fillMaxWidth().animateItem(),contentAlignment=if(message.user) Alignment.CenterEnd else Alignment.CenterStart) {
+                            Column(Modifier.fillMaxWidth(if(message.user) 0.85f else 1f).background(if(message.user) AccentSoft else Card,TileShape).padding(Space.l)) {
+                                Text(if(message.user) "You" else "Calico",style=MaterialTheme.typography.labelSmall,color=Muted)
+                                Text(message.text.ifEmpty { "Preparing your answer…" },style=MaterialTheme.typography.bodyLarge,color=Ink,modifier=Modifier.padding(top=6.dp))
+                            }
                         }
                     }
                 }
-                if(state.status.isNotBlank()) Text(state.status,style=MaterialTheme.typography.labelSmall,color=Muted)
+                if(state.status.isNotBlank() && !state.downloading) Text(state.status,style=MaterialTheme.typography.labelSmall,color=Muted)
                 Row(Modifier.fillMaxWidth().padding(top=8.dp),verticalAlignment=Alignment.CenterVertically) {
                     OutlinedTextField(value=draft,onValueChange={ draft=it.take(500) },modifier=Modifier.weight(1f),
                         enabled=state.ready && !state.busy,maxLines=3,placeholder={ Text("Ask your coach") },shape=TileShape)
                     Spacer(Modifier.width(8.dp))
+                    // "Stop" only ends an answer; the download has its own cancel above.
                     Button(onClick={ if(state.busy) coach.stop() else { sendMessage(draft); draft="" } },
-                        enabled=state.busy || (state.ready && draft.isNotBlank()),shape=Pill,
-                        colors=ButtonDefaults.buttonColors(containerColor=Accent)) { Text(if(state.busy) "Stop" else "Send") }
+                        enabled=(state.busy && !state.downloading) || (state.ready && !state.busy && draft.isNotBlank()),shape=Pill,
+                        colors=ButtonDefaults.buttonColors(containerColor=Accent)) { Text(if(state.busy && !state.downloading) "Stop" else "Send") }
                 }
                 Text("AI answers can be wrong. Uses saved cues, not a live camera view.",style=MaterialTheme.typography.labelSmall,color=Muted,modifier=Modifier.padding(vertical=10.dp))
             }
