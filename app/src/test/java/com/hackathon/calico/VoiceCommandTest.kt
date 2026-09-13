@@ -20,6 +20,19 @@ class VoiceCommandTest {
         assertNull(VoiceCommands.similarLabel("cleer",setOf("clear")))
         assertNull(VoiceCommands.similarLabel("rate",setOf("late","date")))
     }
+    @Test fun globalExitWakeResetAndDemoModesAreUnambiguous() {
+        for(text in listOf("close","stop this","please exit from AR","quit Calico now","leave this page"))
+            assertEquals(text,"exit",VoiceCommands.parse(text)?.action)
+        assertEquals("end",VoiceCommands.parse("stop workout")?.action)
+        assertTrue(VoiceCommands.isWakeMention("Hey Calico, listen again"))
+        assertFalse(VoiceCommands.isWakeMention("Calico show squats"))
+        val demo=VoiceCommands.parse("show me a squat demo")!!
+        assertEquals("demo",demo.action); assertEquals(Exercise.SQUAT,demo.exercise); assertTrue(demo.expand)
+        val ar=VoiceCommands.parse("show squats in AR")!!
+        assertEquals("demo",ar.action); assertEquals(Exercise.SQUAT,ar.exercise); assertFalse(ar.expand)
+        assertTrue(VoiceCommands.parse("show me a demo")!!.expand)
+        assertFalse(VoiceCommands.parse("open AR")!!.expand)
+    }
     @Test fun workoutOrbEditsAreExplicitAndBounded() {
         assertEquals("restart",VoiceCommands.parse("restart exercise")!!.action)
         assertEquals("restart_session",VoiceCommands.parse("restart workout")!!.action)

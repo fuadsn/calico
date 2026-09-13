@@ -55,9 +55,20 @@ class CoachVoiceTest {
             }
             assertTrue("TTS did not finish",finished)
             i.runOnMainSync {
-                assertNull(voice.error)
+                // A muted phone is reported as a notice on the same field; it is not a speech failure.
+                assertTrue("Speech failed: ${voice.error}",voice.error==null || voice.error!!.startsWith("Turn up the media volume"))
                 voice.listen()
-                assertTrue(voice.listening)
+                // Starting is intentionally distinct from listening: only Android's
+                // onReadyForSpeech callback is allowed to light the listening UI.
+                assertFalse(voice.listening)
+            }
+            var listening=false
+            repeat(50) {
+                i.runOnMainSync { listening=voice.listening }
+                if(!listening) SystemClock.sleep(100)
+            }
+            i.runOnMainSync {
+                assertTrue("Recognizer never became ready: ${voice.error}",listening)
                 voice.stop()
                 assertFalse(voice.listening)
                 assertFalse(voice.speaking)

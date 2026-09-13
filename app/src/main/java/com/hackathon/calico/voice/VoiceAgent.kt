@@ -114,9 +114,20 @@ object VoiceAgent {
     }
     fun target(activity: Activity): Activity = if(activity is VoiceAgentActivity) origin.get()?.takeUnless { it.isDestroyed || it.isFinishing } ?: activity else activity
     fun dispatch(activity: Activity, text: String): String? {
-        val command=VoiceCommands.parse(text) ?: return if(Regex("^(open|start|begin|stop|pause|resume|restart|set|change|switch|skip|tap|click|delete|clear)\\b").containsMatchIn(VoiceCommands.normalize(text)))
-            "I couldn't match that to an available action. Nothing was changed. Say voice commands for examples." else null
         val host=target(activity)
+        val command=VoiceCommands.parse(text) ?: run {
+            // A spoken visible control may be used directly; "tap" is optional. This is the
+            // generic bridge for controls registered by each Compose screen.
+            VoiceButtons.find(activity,text)?.let { it(); return "Done." }
+            VoiceButtons.find(host,text)?.let { it(); if(activity is VoiceAgentActivity) activity.finish(); return "Done." }
+            val label=VoiceCommands.similarLabel(text,if(activity is VoiceAgentActivity) nativeLabels else nativeButtons(host).map { it.first }.toSet())
+            if(label!=null) {
+                if(activity is VoiceAgentActivity) { pendingNative=WeakReference(host) to label; activity.finish(); return "Returning to the screen to press $label." }
+                nativeButtons(host).singleOrNull { it.first==label }?.second?.performClick()?.let { return "Done." }
+            }
+            return if(Regex("^(open|start|begin|stop|pause|resume|restart|set|change|switch|skip|tap|click|press|select|choose|delete|clear|close|exit)\\b").containsMatchIn(VoiceCommands.normalize(text)))
+                "I couldn't match that to an available action. Nothing was changed. Say voice commands for examples." else null
+        }
         val workout=(host as? WorkoutActivity) ?: activeWorkout.get()?.takeUnless { it.isDestroyed || it.isFinishing }
         fun launch(intent: Intent) { activity.startActivity(intent); if(activity is VoiceAgentActivity) activity.finish() }
         when(command.action) {
@@ -157,8 +168,20 @@ object VoiceAgent {
                 }
                 launch(Intent(activity,WorkoutActivity::class.java).putExtra("routine",steps.encode())); return "Starting your session."
             }
-            "demo" -> { launch(Intent(activity,com.calico.roomscan.PreviewActivity::class.java).putExtra("exercise",command.exercise!!.name)); return "Opening the exercise demo." }
+            "demo" -> {
+                val exercise=command.exercise ?: workout?.voiceDemoExercise()
+                    ?: return "Name the exercise you want to see, or open a workout first."
+                launch(Intent(activity,com.calico.roomscan.PreviewActivity::class.java)
+                    .putExtra("exercise",exercise.name).putExtra("expand_demo",command.expand))
+                return if(command.expand) "Opening the full exercise demo." else "Opening the exercise in AR."
+            }
             "disable" -> { setEnabled(false); return "Hands-free listening is off." }
+            "exit" -> {
+                launch(Intent(activity,MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    .putExtra("tab",0))
+                return "Returning home."
+            }
             "back" -> { if(host is ComponentActivity) host.onBackPressedDispatcher.onBackPressed() else host.finish(); if(activity is VoiceAgentActivity) activity.finish(); return "Going back." }
             "close" -> { if(workout!=null) workout.closeVoiceOrb() else VoiceButtons.find(activity,"close voice coach")?.invoke() ?: run { if(activity is VoiceAgentActivity) activity.finish() }; return "Voice closed." }
             "button" -> {

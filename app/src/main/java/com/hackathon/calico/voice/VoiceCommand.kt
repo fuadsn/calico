@@ -2,11 +2,27 @@ package com.hackathon.calico.voice
 
 import com.hackathon.calico.Exercise
 
-data class VoiceCommand(val action: String, val exercise: Exercise? = null, val target: Int? = null, val label: String = "")
+/** [expand] asks a demo to open with the 3D model already at full size rather than in the corner. */
+data class VoiceCommand(val action: String, val exercise: Exercise? = null, val target: Int? = null,
+    val label: String = "", val expand: Boolean = false)
 
 /** Commands are explicit app actions, never executable model output. */
 object VoiceCommands {
     fun normalize(text: String) = text.lowercase().replace('-', ' ').replace(Regex("[^a-z0-9 ]"), " ").replace(Regex("\\s+"), " ").trim()
+
+    /** Saying the name on its own is a reset: drop whatever came before and listen again. */
+    private val wake = Regex("^(hey |hi |ok |okay |yo )?(calico|calico calico)( again| are you there| you there| listen( again)?| listening| hello| hi| yes)?$")
+    fun isWakeMention(raw: String) = wake.matches(normalize(raw))
+
+    /** Said on their own these always mean "get me out of here", whatever screen is open. */
+    private val exits = setOf("close", "exit", "quit", "leave", "stop", "dismiss", "escape", "abort",
+        "get out", "get me out", "go out", "close this", "close that", "exit this", "close it", "exit it",
+        "close app", "exit app", "quit app", "leave app", "close the app", "exit the app", "quit the app",
+        "close calico", "exit calico", "stop calico", "quit calico", "close everything", "shut it down",
+        "go home", "home", "homepage", "home page", "main menu", "main page", "main screen",
+        "take me home", "go to home", "back to home", "back home", "open home", "show home",
+        "never mind", "nevermind", "forget it", "cancel", "cancel that", "i m out", "im out")
+
     fun parse(raw: String): VoiceCommand? {
         var text = normalize(raw)
         if (Regex("\\b(don t|do not|never|should i|how do i|when should|why)\\b").containsMatchIn(text)) return null
@@ -19,6 +35,12 @@ object VoiceCommands {
             .replace(Regex("\\b(the|a|an|my|this|current)\\s+(workout|session|exercise)\\b"), "$2")
             .replace(Regex("^(halt|end|finish|cancel) (workout|session)$"), "stop workout")
             .replace(Regex("^(stop|pause) (session|exercise)$"), "$1 workout")
+        // Checked before the control words below, so a bare "stop" leaves the screen rather than
+        // pausing, while "stop workout" still ends the session.
+        if (text in exits) return VoiceCommand("exit")
+        if (Regex("\\b(close|exit|quit|leave|stop|dismiss|escape)\\b").containsMatchIn(text) &&
+            !Regex("\\b(workout|session|recording|download|listening)\\b").containsMatchIn(text))
+            return VoiceCommand("exit")
         if (text in setOf("take a break", "take break", "give me a break", "hold on", "hold up", "wait", "pause it", "stop it")) return VoiceCommand("pause")
         if (text in setOf("keep going", "carry on", "continue workout", "continue session", "resume it", "play workout", "unpause", "unpause workout")) return VoiceCommand("resume")
         if (text in setOf("next", "next one", "skip this", "skip this one", "move on", "move to next exercise")) return VoiceCommand("skip")
@@ -36,16 +58,16 @@ object VoiceCommands {
         }
         ones.forEachIndexed { i,word -> text=text.replace(Regex("\\b$word\\b"),i.toString()) }
         val actions = mapOf(
-            "pause" to "pause", "pause workout" to "pause", "pause the workout" to "pause", "stop" to "pause",
+            "pause" to "pause", "pause workout" to "pause", "pause the workout" to "pause",
             "resume" to "resume", "resume workout" to "resume", "resume the workout" to "resume", "play" to "resume", "continue" to "resume",
             "skip" to "skip", "skip exercise" to "skip", "next exercise" to "skip", "skip rest" to "skip",
             "end workout" to "end", "stop workout" to "end", "finish workout" to "end",
-            "go home" to "home", "open home" to "home", "open workouts" to "home", "show workouts" to "home",
+            "open workouts" to "home", "show workouts" to "home",
             "open journey" to "journey", "show journey" to "journey",
-            "open scanner" to "scan", "scan room" to "scan", "open scan" to "scan",
-            "open coach" to "coach", "open voice" to "voice",
+            "open scanner" to "scan", "scan room" to "scan", "open scan" to "scan", "scan floor" to "scan", "scan my room" to "scan",
+            "open coach" to "coach", "ask coach" to "coach", "open voice" to "voice",
             "start workout" to "today", "start session" to "today", "start todays workout" to "today", "start today s workout" to "today",
-            "go back" to "back", "back" to "back", "close voice" to "close", "cancel" to "close",
+            "go back" to "back", "back" to "back", "close voice" to "close",
             "disable hands free" to "disable", "stop listening" to "disable",
             "start recording" to "record", "stop recording" to "record_stop",
             "voice commands" to "help", "help" to "help", "what can you do" to "help"
@@ -70,19 +92,22 @@ object VoiceCommands {
             return if(parsed?.action=="exercise") parsed.copy(action="change_exercise")
                 else VoiceCommand("invalid",label="Name an exercise, for example change exercise to squats.")
         }
-        if (Regex("^(tap|click|press|hit) ").containsMatchIn(text)) {
+        if (Regex("^(tap|click|press|hit|select|choose) ").containsMatchIn(text)) {
             val label=text.substringAfter(' ').removePrefix("the ").removeSuffix(" button")
             val control=parse(label)
-            if(control!=null && control.action in setOf("pause","resume","skip","end","today","restart","restart_session")) return control
+            if(control!=null && control.action in setOf("pause","resume","skip","end","today","restart","restart_session","exit")) return control
             return VoiceCommand("button", label=label)
         }
-        if (Regex("^(start|begin|do|show|preview)\\b").containsMatchIn(text)) {
+        // "demo" means watch it at full size; "AR" alone means the usual corner card.
+        val wantsDemo = Regex("\\bdemos?\\b|\\bdemonstrat").containsMatchIn(text)
+        val wantsAr = Regex("\\b(ar|augmented reality)\\b").containsMatchIn(text)
+        if (Regex("^(start|begin|do|show|preview|demo|demonstrate|view|display|open)\\b").containsMatchIn(text) || wantsDemo || wantsAr) {
             val normalized = text.replace("push ups", "pushups").replace("push up", "pushup")
                 .replace("sit ups", "situps").replace("sit up", "situp").replace("pull ups", "pullups").replace("pull up", "pullup")
             val exercise = Exercise.entries.sortedByDescending { it.name.length }.firstOrNull {
                 val name = it.name.lowercase().replace('_', ' ')
                 Regex("\\b${Regex.escape(name)}s?\\b").containsMatchIn(normalized)
-            }
+            } ?: similarExercise(normalized)
             if (exercise != null) {
                 val remaining=normalized.replace(Regex("\\b${Regex.escape(exercise.name.lowercase().replace('_',' '))}s?\\b"),"")
                 if(Exercise.entries.any { Regex("\\b${Regex.escape(it.name.lowercase().replace('_',' '))}s?\\b").containsMatchIn(remaining) })
@@ -99,11 +124,39 @@ object VoiceCommands {
                     number*=60
                 }
                 if(number!=null && number !in 1..300) return VoiceCommand("invalid",label="Choose a target between 1 and 300.")
-                return VoiceCommand(if(text.startsWith("show ") || text.startsWith("preview ")) "demo" else "exercise",exercise,number)
+                val showing = wantsDemo || wantsAr || Regex("^(show|preview|view|display)\\b").containsMatchIn(text)
+                return VoiceCommand(if(showing) "demo" else "exercise",exercise,number,expand=wantsDemo && !wantsAr)
             }
             if(text.startsWith("start ") || text.startsWith("begin ")) return VoiceCommand("level",label=text.substringAfter(' ').removeSuffix(" session").removeSuffix(" workout"))
+            if(wantsDemo || wantsAr) return VoiceCommand("demo",expand=wantsDemo && !wantsAr)
         }
+        // A phrase one or two letters away from a real command is almost always that command.
+        similarLabel(text, actions.keys)?.let { match -> return VoiceCommand(actions.getValue(match)) }
+        similarLabel(text, exits)?.let { return VoiceCommand("exit") }
         return null
+    }
+
+    private fun distance(a: String, b: String): Int {
+        var prev=IntArray(b.length+1) { it }
+        a.forEachIndexed { i,c ->
+            val next=IntArray(b.length+1); next[0]=i+1
+            b.forEachIndexed { j,d -> next[j+1]=minOf(next[j]+1,prev[j+1]+1,prev[j]+if(c==d) 0 else 1) }
+            prev=next
+        }
+        return prev.last()
+    }
+
+    /** Recovers a mis-heard exercise name ("squads", "lunch") when no name matched exactly. */
+    fun similarExercise(text: String): Exercise? {
+        val words = text.split(' ').filter { it.isNotBlank() }
+        if (words.isEmpty()) return null
+        val phrases = words.indices.flatMap { i -> (1..3).mapNotNull { n -> if (i+n<=words.size) words.subList(i,i+n).joinToString(" ") else null } }
+        val matches = Exercise.entries.filter { exercise ->
+            val name = exercise.name.lowercase().replace('_', ' ')
+            val budget = if (name.length >= 8) 2 else 1
+            phrases.any { it.length >= name.length-budget && distance(it, name) <= budget }
+        }
+        return matches.singleOrNull()
     }
 
     /** A small spelling error may select one unique existing label; never guess destructive actions. */
@@ -111,15 +164,6 @@ object VoiceCommands {
         val query=normalize(raw)
         if(query in labels) return query
         if(query.length<4) return null
-        fun distance(a: String,b: String): Int {
-            var prev=IntArray(b.length+1) { it }
-            a.forEachIndexed { i,c ->
-                val next=IntArray(b.length+1); next[0]=i+1
-                b.forEachIndexed { j,d -> next[j+1]=minOf(next[j]+1,prev[j+1]+1,prev[j]+if(c==d) 0 else 1) }
-                prev=next
-            }
-            return prev.last()
-        }
         val matches=labels.filterNot { Regex("\\b(delete|clear|forget|reset|disable)\\b").containsMatchIn(it) }
             .filter { distance(query,it)<=if(query.length>=8) 2 else 1 }
         return matches.singleOrNull()

@@ -102,6 +102,7 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_preview)
         exercise = intent.getStringExtra("exercise")?.takeIf { it.isNotBlank() } ?: DEFAULT_EXERCISE
+        demoExpanded = intent.getBooleanExtra("expand_demo", false)
 
         surfaceView = findViewById(R.id.surface)
         titleText = findViewById(R.id.title)
@@ -120,6 +121,7 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         actionBar = findViewById(R.id.actions)
         insetLabel = findViewById(R.id.insetLabel)
         demoHitArea = findViewById(R.id.demoHitArea)
+        insetLabel.setText(if (demoExpanded) R.string.preview_demo_close else R.string.preview_demo_label)
         // AR stays the main view; the demo card toggles between a small corner card and a large one.
         demoHitArea.setOnClickListener {
             demoExpanded = !demoExpanded

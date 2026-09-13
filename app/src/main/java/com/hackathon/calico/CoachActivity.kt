@@ -68,6 +68,8 @@ class CoachActivity : ComponentActivity() {
                 put("Workout overview") { overview=true }
                 if(!state.busy) {
                     put("Clear",coach::clear)
+                    put("Clear conversation",coach::clear)
+                    put("Analyze room",coach::analyzeRoom)
                     put("Model setup") { setup=true }
                     put("Hide setup") { setup=false }
                     put("Forget",coach::forgetWorkout)
@@ -78,6 +80,9 @@ class CoachActivity : ComponentActivity() {
                     }
                     if(state.ready) {
                         put("Explain my cues") { coach.send("Explain my latest recorded form cues and what I should check next.") }
+                        put("Why might my reps not count") { coach.send("Why might my reps not count?") }
+                        put("How do I do a pushup") { coach.send("How do I do a pushup?") }
+                        put("What does go deeper mean for squats") { coach.send("What does Go deeper mean for squats?") }
                         if(draft.isNotBlank()) put("Send") { sendMessage(draft); draft="" }
                     }
                 } else if(state.downloading) put("Cancel download",coach::cancelDownload)
@@ -87,6 +92,7 @@ class CoachActivity : ComponentActivity() {
                     put("Ask coach") { overview=false; coach.send("Review my whole last workout and the repeated cues. What should I focus on next?") }
                 }
                 if(about) put("Done") { about=false }
+                if(state.arPlan!=null) put("Preview proposal in AR") { coach.applyRoomPlan()?.let(::startActivity) }
             })
             if(overview) AlertDialog(onDismissRequest={ overview=false },title={ Text("Workout overview") },
                 text={ Text(state.overview,modifier=Modifier.heightIn(max=400.dp).verticalScroll(rememberScrollState())) },

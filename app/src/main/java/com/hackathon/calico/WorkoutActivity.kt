@@ -157,6 +157,7 @@ class WorkoutActivity : ComponentActivity() {
         saveCoachSnapshot(); tts.stop(); voiceOrbOpen=true
     }
     fun closeVoiceOrb() { voiceOrbOpen=false }
+    fun voiceDemoExercise(): Exercise = steps[stepIndex.coerceIn(0,steps.lastIndex)].exercise
     fun voiceTarget(target: Int, unit: String): String {
         if(bench || phase==Phase.DONE) return "Start an active exercise before changing its target."
         if(phase==Phase.REST || (phase==Phase.PAUSED && pausedFrom==Phase.REST)) return "Skip rest or wait for the next exercise before changing its target."
