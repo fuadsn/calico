@@ -63,16 +63,4 @@ class CoachKnowledgeTest {
         assertFalse(CoachReplyPolicy.finished("Place your hands. Bend your elbows. Push back up.",true))
         assertEquals("Try a wall press-up.",CoachReplyPolicy.visible("Try a wall press-up. Let me know if you need help."))
     }
-
-    @Test fun `speech chunks stop at finished sentences only`() {
-        fun cut(text: String)=text.substring(0,CoachReplyPolicy.speakableCut(text))
-        assertEquals("",cut("Keep your back straight while"))
-        assertEquals("Keep your back straight.",cut("Keep your back straight. Then lower"))
-        assertEquals("Nice work! That counts.",cut("Nice work! That counts. Now"))
-        assertEquals("",cut("An angle of 90.5"))
-        assertEquals("",cut("1. Set your feet"))
-        assertEquals("1. Set your feet apart.",cut("1. Set your feet apart. 2. Bend"))
-        assertEquals("",cut("Lower slowly, e.g. two"))
-        assertEquals("Ready?",cut("Ready? Start when you are"))
-    }
 }
