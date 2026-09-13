@@ -18,7 +18,7 @@ class WakeDetector(private val context: Context) {
                 transducer=OnlineTransducerModelConfig(
                     encoder="wake/encoder.int8.onnx", decoder="wake/decoder.onnx", joiner="wake/joiner.int8.onnx"),
                 tokens="wake/tokens.txt", modelType="zipformer2", numThreads=1),
-            keywordsFile="wake/keywords.txt", keywordsThreshold=0.35f)
+            keywordsFile="wake/keywords.txt", keywordsThreshold=0.35f, maxActivePaths=8)
     }
     private val worker = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
@@ -46,12 +46,16 @@ class WakeDetector(private val context: Context) {
                 main.post { if(run==epoch) onReady() }
                 val buffer=ShortArray(1600)
                 var detected=""
+                var gain=1f
                 while(run==epoch && detected.isEmpty()) {
                     val n=audio.read(buffer,0,buffer.size)
                     check(n>=0) { "Microphone disconnected" }
                     if(n==0) continue
                     peakSinceStart=maxOf(peakSinceStart,(0 until n).maxOf { kotlin.math.abs(buffer[it].toInt()) }/32768f)
-                    val samples=FloatArray(n) { buffer[it]/32768f }
+                    // Automatic gain: a quiet or distant voice is lifted toward a healthy level before spotting.
+                    val peak=(0 until n).maxOf { kotlin.math.abs(buffer[it].toInt()) }/32768f
+                    gain=(gain*0.8f+(0.6f/maxOf(peak,0.02f)).coerceIn(1f,10f)*0.2f)
+                    val samples=FloatArray(n) { (buffer[it]/32768f*gain).coerceIn(-1f,1f) }
                     stream.acceptWaveform(samples,16000)
                     while(kws.isReady(stream) && run==epoch) {
                         kws.decode(stream)
