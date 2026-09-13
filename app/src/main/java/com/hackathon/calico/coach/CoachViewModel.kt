@@ -132,6 +132,7 @@ class CoachViewModel(application: Application) : AndroidViewModel(application) {
         val current=mutable.value
         if(current.busy || text.isEmpty()) return
         if(!current.ready) { VoiceAgent.unmatchedActionReply(text)?.let { recordAction(text,it) } ?: send(text); return }
+        if(text.endsWith("?") || CHATTY.containsMatchIn(VoiceCommands.normalize(text))) { send(text); return }   // greetings and plain questions are never actions
         mutable.update { it.copy(busy=true,error=null,completedAnswer=null,speech=null,status="Understanding…") }
         task=viewModelScope.launch {
             val command=try { withContext(dispatcher) { interpret(text,context) } }
@@ -259,3 +260,6 @@ class CoachViewModel(application: Application) : AndroidViewModel(application) {
         super.onCleared()
     }
 }
+
+/** Greetings, thanks and how/why questions skip the intent model: the 4B model otherwise reads "hello" as "open home". */
+private val CHATTY=Regex("^(hi|hello|hey|yo|hiya|thanks|thank you|good (morning|afternoon|evening)|how are you|who are you|what can you do)\\b|^(how|why|what|when|where|which|is|are|am|do|does|did|should)\\b")

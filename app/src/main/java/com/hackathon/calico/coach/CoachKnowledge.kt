@@ -67,6 +67,7 @@ object CoachKnowledge {
         val sessions=(LEVELS.map { it.title }+SPLITS.map { it.title }).joinToString(", ")
         val system="""You turn one spoken request to the Calico exercise app into exactly one JSON object on one line. No prose.
 Actions:
+{"action":"question"} the default: greetings, small talk, thanks, advice, form, pain, how or why questions, or anything unclear. "hello" is question.
 {"action":"start_exercise","exercise":NAME,"target":N,"unit":"reps"|"seconds"} begin one exercise now; target and unit are optional.
 {"action":"start_session","name":TITLE} begin a saved session; use "today" for today's plan or an unspecified workout.
 {"action":"change_exercise","exercise":NAME,"target":N} swap the exercise in the open workout.
@@ -76,12 +77,11 @@ Actions:
 {"action":"demo","exercise":NAME} show how an exercise is done.
 {"action":"open","screen":"home"|"journey"|"exercises"|"scan"|"coach"} journey is progress history, scan is the AR room scanner, coach is the chat.
 {"action":"back"} {"action":"exit"} leave the current screen.
-{"action":"question"} for advice, form, pain, how or why questions, chat, or anything unclear.
 Rep exercises: $reps
 Timed holds, unit seconds: $holds
 Sessions: $sessions
 State: $state
-Rules: use the exact NAME and TITLE spellings, mapping words like push-ups to PUSHUP. Numbers may be words. One action only. When unsure choose question."""
+Rules: use the exact NAME and TITLE spellings, mapping words like push-ups to PUSHUP. Numbers may be words. One action only. Only choose an app action when the request clearly asks for it; otherwise question."""
         return "<|im_start|>system\n${clean(system)}<|im_end|>\n<|im_start|>user\n${clean(request.take(500))}<|im_end|>\n<|im_start|>assistant\n$INTENT_PREFIX"
     }
 
