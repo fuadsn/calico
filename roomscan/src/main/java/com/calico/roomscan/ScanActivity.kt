@@ -204,11 +204,17 @@ class ScanActivity : Activity(), GLSurfaceView.Renderer {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == CAMERA_REQUEST &&
-            grantResults.firstOrNull() != PackageManager.PERMISSION_GRANTED
-        ) {
-            statusText.text = getString(R.string.scan_camera_denied)
-        }
+        if (requestCode != CAMERA_REQUEST) return
+        if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+            // The callback runs after onResume; explicitly acquire the session so the first
+            // permission grant does not leave the scanner on an inert black surface.
+            if (createSession()) {
+                viewportChanged = true
+                stability.reset()
+                depthSurfaces.reset()
+                surfaceView.onResume()
+            }
+        } else statusText.text = getString(R.string.scan_camera_denied)
     }
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
