@@ -53,14 +53,16 @@ class WakeDetector(private val context: Context) {
                     if(n==0) continue
                     peakSinceStart=maxOf(peakSinceStart,(0 until n).maxOf { kotlin.math.abs(buffer[it].toInt()) }/32768f)
                     // Automatic gain: a quiet or distant voice is lifted toward a healthy level before spotting.
+                    // Below the noise floor nothing is boosted, or amplified room noise fires the wake word.
                     val peak=(0 until n).maxOf { kotlin.math.abs(buffer[it].toInt()) }/32768f
-                    gain=(gain*0.8f+(0.6f/maxOf(peak,0.02f)).coerceIn(1f,10f)*0.2f)
+                    val wanted=if(peak<0.05f) 1f else (0.6f/peak).coerceIn(1f,4f)
+                    gain=gain*0.7f+wanted*0.3f
                     val samples=FloatArray(n) { (buffer[it]/32768f*gain).coerceIn(-1f,1f) }
                     stream.acceptWaveform(samples,16000)
                     while(kws.isReady(stream) && run==epoch) {
                         kws.decode(stream)
                         val result=kws.getResult(stream).keyword
-                        if(result.isNotBlank()) { detected=result; break }
+                        if(result.isNotBlank()) { detected=result; android.util.Log.i("CalicoWake","heard $result peak=${"%.2f".format(peakSinceStart)} gain=${"%.1f".format(gain)}"); break }
                     }
                 }
                 // Release the mic before Android's command recognizer starts.
