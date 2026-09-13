@@ -158,10 +158,17 @@ class WorkoutActivity : ComponentActivity() {
     }
     fun closeVoiceOrb() { voiceOrbOpen=false }
     fun voiceDemoExercise(): Exercise = steps[stepIndex.coerceIn(0,steps.lastIndex)].exercise
-    fun voiceTarget(target: Int, unit: String): String {
+    /** "Five more reps": the goal moves relative to what it is now, with the same bounds as [voiceTarget]. */
+    fun voiceAdjustTarget(delta: Int, unit: String): String {
+        val current=steps.getOrNull(stepIndex)?.target ?: return "Start an active exercise before changing its target."
+        return voiceTarget(current+delta,unit)
+    }
+    fun voiceTarget(target: Int, requestedUnit: String): String {
         if(bench || phase==Phase.DONE) return "Start an active exercise before changing its target."
         if(phase==Phase.REST || (phase==Phase.PAUSED && pausedFrom==Phase.REST)) return "Skip rest or wait for the next exercise before changing its target."
         val hold=counter.exercise.holdSec>0
+        // The model may leave the unit out; the parser always names one.
+        val unit=requestedUnit.ifBlank { if(hold) "seconds" else "reps" }
         if((unit=="seconds")!=hold) return if(hold) "This is a timed hold. Say set hold time to thirty seconds." else "This exercise counts reps. Say set reps to twenty."
         if(target !in 1..300 || target<=total()) return "Choose a target above the ${total()} already completed, up to 300."
         steps=steps.toMutableList().also { it[stepIndex]=it[stepIndex].copy(target=target) }

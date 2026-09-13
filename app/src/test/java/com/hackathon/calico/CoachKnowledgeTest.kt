@@ -64,6 +64,17 @@ class CoachKnowledgeTest {
         assertEquals("Try a wall press-up.",CoachReplyPolicy.visible("Try a wall press-up. Let me know if you need help."))
     }
 
+    @Test fun `intent prompt lists every action, exercise and session and opens the JSON`() {
+        val prompt=CoachKnowledge.intentPrompt("let's do some squats","A workout is open. Squat: 4 of 10 reps. Running.")
+        for(action in listOf("start_exercise","start_session","change_exercise","set_target","adjust_target","pause","resume","skip","end","restart","restart_session","status","demo","open","back","exit","question"))
+            assertTrue(action,prompt.contains("\"action\":\"$action\""))
+        for(e in Exercise.entries) assertTrue(e.name,prompt.contains(e.name))
+        for(title in LEVELS.map { it.title }+SPLITS.map { it.title }) assertTrue(title,prompt.contains(title))
+        assertTrue(prompt.contains("Squat: 4 of 10 reps"))
+        assertTrue(prompt.endsWith("<|im_start|>assistant\n"+CoachKnowledge.INTENT_PREFIX))
+        assertFalse(prompt.substringAfter("<|im_start|>user\n").substringBefore("<|im_end|>").contains("<|"))
+    }
+
     @Test fun `speech chunks stop at finished sentences only`() {
         fun cut(text: String)=text.substring(0,CoachReplyPolicy.speakableCut(text))
         assertEquals("",cut("Keep your back straight while"))

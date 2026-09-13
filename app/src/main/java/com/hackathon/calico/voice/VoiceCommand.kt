@@ -6,9 +6,38 @@ import com.hackathon.calico.Exercise
 data class VoiceCommand(val action: String, val exercise: Exercise? = null, val target: Int? = null,
     val label: String = "", val expand: Boolean = false)
 
-/** Commands are explicit app actions, never executable model output. */
+/** Commands are explicit app actions. The model may pick one from the fixed list, never write one. */
 object VoiceCommands {
     fun normalize(text: String) = text.lowercase().replace('-', ' ').replace(Regex("[^a-z0-9 ]"), " ").replace(Regex("\\s+"), " ").trim()
+
+    /**
+     * Maps the model's JSON intent onto the same commands [parse] produces, with the same
+     * bounds. Malformed JSON, an unknown action, an unknown exercise or "question" all return
+     * null, so the request falls through to the coach as a question.
+     */
+    fun fromIntent(json: String): VoiceCommand? {
+        val obj=try { org.json.JSONObject(json.substring(json.indexOf('{'),json.lastIndexOf('}')+1)) } catch(_: Exception) { return null }
+        val target=obj.optInt("target",Int.MIN_VALUE).takeIf { it!=Int.MIN_VALUE }
+        val unit=obj.optString("unit").takeIf { it=="seconds" || it=="reps" }.orEmpty()
+        val tooLarge=VoiceCommand("invalid",label="Choose a target between 1 and 300.")
+        fun exercise(): Exercise? = obj.optString("exercise").takeIf { it.isNotBlank() }?.let { raw ->
+            val words=normalize(raw).replace("push ups","pushups").replace("push up","pushup").replace("sit ups","situps")
+                .replace("sit up","situp").replace("pull ups","pullups").replace("pull up","pullup")
+            val name=words.replace(' ','_').uppercase()
+            Exercise.entries.firstOrNull { it.name==name || it.name==name.removeSuffix("S") } ?: similarExercise(words)
+        }
+        return when(obj.optString("action")) {
+            "start_exercise" -> { val e=exercise() ?: return null; if(target!=null && target !in 1..300) tooLarge else VoiceCommand("exercise",e,target) }
+            "start_session" -> { val name=normalize(obj.optString("name")); if(name.isBlank() || name.startsWith("today")) VoiceCommand("today") else VoiceCommand("level",label=name) }
+            "change_exercise" -> exercise()?.let { if(target!=null && target !in 1..300) tooLarge else VoiceCommand("change_exercise",it,target) }
+            "set_target" -> target?.let { if(it in 1..300) VoiceCommand("target",target=it,label=unit) else tooLarge }
+            "adjust_target" -> obj.optInt("delta",0).takeIf { it!=0 && it in -300..300 }?.let { VoiceCommand("adjust",target=it,label=unit) }
+            "pause","resume","skip","end","restart","restart_session","status","back","exit" -> VoiceCommand(obj.optString("action"))
+            "demo" -> VoiceCommand("demo",exercise(),expand=true)
+            "open" -> obj.optString("screen").takeIf { it in setOf("home","journey","exercises","scan","coach") }?.let { VoiceCommand(it) }
+            else -> null
+        }
+    }
 
     /** Saying the name on its own is a reset: drop whatever came before and listen again. */
     private val wake = Regex("^(hey |hi |ok |okay |yo )?(calico|calico calico)( again| are you there| you there| listen( again)?| listening| hello| hi| yes)?$")

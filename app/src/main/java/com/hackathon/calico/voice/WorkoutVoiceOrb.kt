@@ -42,7 +42,7 @@ fun WorkoutVoiceOrb(modifier: Modifier=Modifier,onDismiss: ()->Unit) {
         val result=VoiceAgent.dispatch(activity,question)
         if(result!=null) { coach.recordAction(question,result); answer=result; turn++; waitingForCoach=false }
         else if(VoiceCommands.normalize(question) in setOf("calico","hey calico")) { answer="I'm listening."; turn++ }
-        else { waitingForCoach=true; coach.send(question) }
+        else { waitingForCoach=true; coach.ask(question,VoiceAgent.intentContext(activity)) { VoiceAgent.execute(activity,it) } }
     } }
     val taps=remember { TapGate() }
     BackHandler { dismiss() }

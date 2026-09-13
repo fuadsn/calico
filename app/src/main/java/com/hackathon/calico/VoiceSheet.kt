@@ -39,6 +39,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModelProvider
 import com.hackathon.calico.coach.*
+import com.hackathon.calico.voice.VoiceAgent
 import kotlinx.coroutines.delay
 import kotlin.math.abs
 import kotlin.math.sin
@@ -70,7 +71,7 @@ private fun VoiceContent(autoListen: Boolean, onDismiss: () -> Unit) {
         draft=""
         val result=com.hackathon.calico.voice.VoiceAgent.dispatch(activity,question)
         if(result!=null) { coach.recordAction(question,result); commandQuestion=question; commandAnswer=result; commandTurn++; pendingSpeech=false }
-        else { commandAnswer=null; commandQuestion=null; pendingSpeech=true; coach.send(question) }
+        else { commandAnswer=null; commandQuestion=null; pendingSpeech=true; coach.ask(question,VoiceAgent.intentContext(activity)) { VoiceAgent.execute(activity,it) } }
     } }
     val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         if(granted && activity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) voice.listen()
@@ -208,7 +209,7 @@ private fun VoiceContent(autoListen: Boolean, onDismiss: () -> Unit) {
                         val question=draft
                         val result=com.hackathon.calico.voice.VoiceAgent.dispatch(activity,question)
                         if(result!=null) { coach.recordAction(question,result); commandQuestion=question; commandAnswer=result; commandTurn++; pendingSpeech=false }
-                        else { commandQuestion=null; commandAnswer=null; pendingSpeech=true; coach.send(question) }
+                        else { commandQuestion=null; commandAnswer=null; pendingSpeech=true; coach.ask(question,VoiceAgent.intentContext(activity)) { VoiceAgent.execute(activity,it) } }
                         draft=""; typing=false
                     }
                 }

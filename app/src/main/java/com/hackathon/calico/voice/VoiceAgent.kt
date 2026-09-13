@@ -125,10 +125,23 @@ object VoiceAgent {
                 if(activity is VoiceAgentActivity) { pendingNative=WeakReference(host) to label; activity.finish(); return "Returning to the screen to press $label." }
                 nativeButtons(host).singleOrNull { it.first==label }?.second?.performClick()?.let { return "Done." }
             }
-            return if(Regex("^(open|start|begin|stop|pause|resume|restart|set|change|switch|skip|tap|click|press|select|choose|delete|clear|close|exit)\\b").containsMatchIn(VoiceCommands.normalize(text)))
-                "I couldn't match that to an available action. Nothing was changed. Say voice commands for examples." else null
+            return null
         }
-        val workout=(host as? WorkoutActivity) ?: activeWorkout.get()?.takeUnless { it.isDestroyed || it.isFinishing }
+        return execute(activity,command)
+    }
+    /** Without the model to interpret it, a request that sounds like an action gets an honest miss. */
+    fun unmatchedActionReply(text: String): String? =
+        if(Regex("^(open|start|begin|stop|pause|resume|restart|set|change|switch|skip|tap|click|press|select|choose|delete|clear|close|exit)\\b").containsMatchIn(VoiceCommands.normalize(text)))
+            "I couldn't match that to an available action. Nothing was changed. Say voice commands for examples." else null
+    private fun workoutFor(host: Activity)=(host as? WorkoutActivity) ?: activeWorkout.get()?.takeUnless { it.isDestroyed || it.isFinishing }
+    /** What the intent model needs to resolve "this exercise" or "five more": the open workout, if any. */
+    fun intentContext(activity: Activity): String =
+        workoutFor(target(activity))?.let { "A workout is open. ${it.voiceControl("status")}" } ?: "No workout is open."
+    /** Runs one command, from the parser or from the model, and returns what to say about it. */
+    fun execute(activity: Activity, command: VoiceCommand): String? {
+        if(activity.isDestroyed || activity.isFinishing) return "That screen has closed. Nothing was changed."
+        val host=target(activity)
+        val workout=workoutFor(host)
         fun launch(intent: Intent) { activity.startActivity(intent); if(activity is VoiceAgentActivity) activity.finish() }
         when(command.action) {
             "pause", "resume", "skip", "end", "restart", "restart_session", "record", "record_stop", "status" -> {
@@ -144,6 +157,7 @@ object VoiceAgent {
                 return if(command.action in setOf("pause","end")) "No workout is running. You're already stopped." else "Start a workout to use that control."
             }
             "target" -> return workout?.voiceTarget(command.target!!,command.label) ?: "Open a workout before changing its target."
+            "adjust" -> return workout?.voiceAdjustTarget(command.target!!,command.label) ?: "Open a workout before changing its target."
             "change_exercise" -> return workout?.voiceExercise(command.exercise!!,command.target) ?: "Open a workout before changing its exercise."
             "home", "journey" -> { launch(Intent(activity,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra("tab",if(command.action=="home") 0 else 1)); return "Opening ${command.action}." }
             "exercises" -> { launch(Intent(activity,MainActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT or Intent.FLAG_ACTIVITY_SINGLE_TOP).putExtra("tab",2)); return "Opening exercises." }

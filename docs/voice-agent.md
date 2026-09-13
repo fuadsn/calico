@@ -58,7 +58,17 @@ It releases the microphone before the on-device Android SpeechRecognizer starts.
 Calico/Kalico tokenizations accommodate pronunciation variants. Audio is
 processed locally without being saved. There is no AccessibilityService.
 
-`VoiceCommands` handles explicit commands; model output never executes actions.
+`VoiceCommands` handles explicit commands first, with no model involved. When it
+cannot read a request, `CoachViewModel.ask` sends it to the local model with
+`CoachKnowledge.intentPrompt`: a fixed list of actions, the exercise and session
+names, and the open workout's state. The reply is opened for the model as
+`{"action":"` and it may only fill in one action and its parameters;
+`VoiceCommands.fromIntent` maps that JSON onto the same bounded commands the parser
+produces and `VoiceAgent.execute` runs it through the same code. An unknown action,
+exercise or `question` falls through to a normal coach answer. The model never
+writes text that the app runs. `adjust_target` ("five more reps") is relative to
+the current goal and keeps the completed count. Device check: `VoiceIntentDeviceTest`
+sends loose phrasings through the NPU and logs the chosen action and latency.
 `VoiceAgent` keeps a weak reference to the originating activity. Compose screens
 register available callbacks with `VoiceActionBindings`; native buttons need a
 unique visible label and must still be enabled after returning to the screen.

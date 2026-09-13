@@ -1,6 +1,8 @@
 package com.hackathon.calico.coach
 
 import com.hackathon.calico.Exercise
+import com.hackathon.calico.LEVELS
+import com.hackathon.calico.SPLITS
 
 data class CoachMessage(val user: Boolean, val text: String)
 
@@ -51,6 +53,37 @@ object CoachKnowledge {
 
     fun roomPrompt(scene: String,question: String="Recommend a demo.",workoutContext: String=""): String =
         "<|im_start|>system\nSelect one stable selectedFloor zone from this measured scene, and one compatible exercise. Return ONLY JSON with exactly zoneId, exercise, reason. For STANDING_ONLY choose ARM_RAISE or ARM_CIRCLE; for AMPLE choose SQUAT or PUSHUP. Never invent a zone. Prefer the requested exercise if compatible. The reason is brief plain language, not a safety guarantee; avoid schema terms such as selectedFloor and AMPLE. This is a demo recommendation, not injury treatment. If no stable selectedFloor exists return {}.\n$scene\n${clean(workoutContext.take(1200))}<|im_end|>\n<|im_start|>user\n${clean(question.take(500))}<|im_end|>\n<|im_start|>assistant\n"
+
+    /** The reply starts inside the JSON, so the model can only fill in the action. */
+    const val INTENT_PREFIX = "{\"action\":\""
+    /**
+     * One spoken request becomes one JSON action from a fixed list. The model chooses and fills
+     * parameters; it never writes free text that the app would run. [state] describes the open
+     * workout so relative edits ("five more") and "this exercise" resolve.
+     */
+    fun intentPrompt(request: String, state: String): String {
+        val reps=Exercise.entries.filter { it.holdSec==0 }.joinToString(", ") { it.name }
+        val holds=Exercise.entries.filter { it.holdSec>0 }.joinToString(", ") { it.name }
+        val sessions=(LEVELS.map { it.title }+SPLITS.map { it.title }).joinToString(", ")
+        val system="""You turn one spoken request to the Calico exercise app into exactly one JSON object on one line. No prose.
+Actions:
+{"action":"start_exercise","exercise":NAME,"target":N,"unit":"reps"|"seconds"} begin one exercise now; target and unit are optional.
+{"action":"start_session","name":TITLE} begin a saved session; use "today" for today's plan or an unspecified workout.
+{"action":"change_exercise","exercise":NAME,"target":N} swap the exercise in the open workout.
+{"action":"set_target","target":N,"unit":"reps"|"seconds"} set the current exercise's goal to N.
+{"action":"adjust_target","delta":N,"unit":"reps"|"seconds"} add N to the current goal; negative removes. "five more reps" is delta 5.
+{"action":"pause"} {"action":"resume"} {"action":"skip"} next exercise or skip rest. {"action":"end"} stop and save the workout. {"action":"restart"} redo the current exercise. {"action":"restart_session"} redo the whole workout. {"action":"status"} report the count.
+{"action":"demo","exercise":NAME} show how an exercise is done.
+{"action":"open","screen":"home"|"journey"|"exercises"|"scan"|"coach"} journey is progress history, scan is the AR room scanner, coach is the chat.
+{"action":"back"} {"action":"exit"} leave the current screen.
+{"action":"question"} for advice, form, pain, how or why questions, chat, or anything unclear.
+Rep exercises: $reps
+Timed holds, unit seconds: $holds
+Sessions: $sessions
+State: $state
+Rules: use the exact NAME and TITLE spellings, mapping words like push-ups to PUSHUP. Numbers may be words. One action only. When unsure choose question."""
+        return "<|im_start|>system\n${clean(system)}<|im_end|>\n<|im_start|>user\n${clean(request.take(500))}<|im_end|>\n<|im_start|>assistant\n$INTENT_PREFIX"
+    }
 
     fun prompt(question: String, history: List<CoachMessage>, snapshot: CoachSnapshot?, context: String = ""): String {
         require(question.isNotBlank() && question.length <= 500) { "Ask a question of up to 500 characters." }

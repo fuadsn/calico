@@ -35,8 +35,9 @@ import java.util.Date
 class CoachActivity : ComponentActivity() {
     private lateinit var coach: CoachViewModel
     private fun sendMessage(text: String) {
-        val result=com.hackathon.calico.voice.VoiceAgent.dispatch(this,text)
-        if(result!=null) coach.recordAction(text,result) else coach.send(text)
+        val agent=com.hackathon.calico.voice.VoiceAgent
+        val result=agent.dispatch(this,text)
+        if(result!=null) coach.recordAction(text,result) else coach.ask(text,agent.intentContext(this)) { agent.execute(this,it) }
     }
     // Both keep the model in the user's storage: the download goes into a document they
     // create, and an existing file is referenced in place rather than copied.

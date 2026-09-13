@@ -71,6 +71,29 @@ class VoiceCommandTest {
         assertEquals("invalid",VoiceCommands.parse("start 999999999999 squats")!!.action)
         for(e in Exercise.entries) assertEquals(e,VoiceCommands.parse("start ${e.name.replace('_',' ')}")!!.exercise)
     }
+    @Test fun modelIntentsMapOntoTheSameBoundedCommands() {
+        val squats=VoiceCommands.fromIntent("""{"action":"start_exercise","exercise":"SQUAT","target":15,"unit":"reps"}""")!!
+        assertEquals("exercise",squats.action); assertEquals(Exercise.SQUAT,squats.exercise); assertEquals(15,squats.target)
+        assertEquals(Exercise.INCLINE_PUSHUP,VoiceCommands.fromIntent("""{"action":"start_exercise","exercise":"incline push-ups"}""")!!.exercise)
+        assertEquals(Exercise.JUMPING_JACK,VoiceCommands.fromIntent("""{"action":"demo","exercise":"jumping jacks"}""")!!.exercise)
+        assertEquals("invalid",VoiceCommands.fromIntent("""{"action":"start_exercise","exercise":"SQUAT","target":9999}""")!!.action)
+        assertEquals("today",VoiceCommands.fromIntent("""{"action":"start_session","name":"today"}""")!!.action)
+        assertEquals("floor basics",VoiceCommands.fromIntent("""{"action":"start_session","name":"Floor Basics"}""")!!.label)
+        val more=VoiceCommands.fromIntent("""{"action":"adjust_target","delta":5,"unit":"reps"}""")!!
+        assertEquals("adjust",more.action); assertEquals(5,more.target); assertEquals("reps",more.label)
+        assertEquals(-3,VoiceCommands.fromIntent("""{"action":"adjust_target","delta":-3}""")!!.target)
+        assertNull(VoiceCommands.fromIntent("""{"action":"adjust_target","delta":0}"""))
+        assertEquals("target",VoiceCommands.fromIntent("""{"action":"set_target","target":20}""")!!.action)
+        assertEquals("journey",VoiceCommands.fromIntent("""{"action":"open","screen":"journey"}""")!!.action)
+        assertEquals("end",VoiceCommands.fromIntent("""{"action":"end"} trailing text""")!!.action)
+        // Anything the app cannot run safely falls through to the coach as a question.
+        assertNull(VoiceCommands.fromIntent("""{"action":"question"}"""))
+        assertNull(VoiceCommands.fromIntent("""{"action":"delete_everything"}"""))
+        assertNull(VoiceCommands.fromIntent("""{"action":"start_exercise","exercise":"bench press"}"""))
+        assertNull(VoiceCommands.fromIntent("""{"action":"open","screen":"settings"}"""))
+        assertNull(VoiceCommands.fromIntent("""{"action":"pause"""))
+        assertNull(VoiceCommands.fromIntent("not json at all"))
+    }
     @Test fun controlsAreExplicitAndQuestionsAreNotCommands() {
         assertEquals("pause",VoiceCommands.parse("pause workout")!!.action)
         assertEquals("resume",VoiceCommands.parse("play")!!.action)

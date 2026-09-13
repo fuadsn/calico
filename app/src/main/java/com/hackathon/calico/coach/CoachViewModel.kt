@@ -6,6 +6,9 @@ import android.os.SystemClock
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.hackathon.calico.voice.VoiceAgent
+import com.hackathon.calico.voice.VoiceCommand
+import com.hackathon.calico.voice.VoiceCommands
 import java.io.ByteArrayOutputStream
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -117,6 +120,46 @@ class CoachViewModel(application: Application) : AndroidViewModel(application) {
         }
         return android.content.Intent(getApplication(),com.calico.roomscan.PreviewActivity::class.java)
             .putExtra("exercise",org.json.JSONObject(plan).getString("exercise"))
+    }
+    /**
+     * Entry point once the explicit parser has given up. The local model maps the request onto
+     * one app action; [execute] runs it and returns what to say, or null if it cannot. Anything
+     * that is not an action becomes an ordinary coach question.
+     */
+    fun ask(question: String, context: String, execute: (VoiceCommand)->String?) {
+        val text=question.trim()
+        refresh()
+        val current=mutable.value
+        if(current.busy || text.isEmpty()) return
+        if(!current.ready) { VoiceAgent.unmatchedActionReply(text)?.let { recordAction(text,it) } ?: send(text); return }
+        mutable.update { it.copy(busy=true,error=null,completedAnswer=null,speech=null,status="Understanding…") }
+        task=viewModelScope.launch {
+            val command=try { withContext(dispatcher) { interpret(text,context) } }
+                catch(_: CancellationException) { mutable.update { it.copy(busy=false,status="Answer stopped.") }; return@launch }
+                catch(e: Exception) { Log.w("CalicoCoach","intent failed",e); null }
+            val outcome=command?.let(execute)
+            // busy drops and the follow-up starts in one main-thread step, so no frame sees the gap.
+            mutable.update { it.copy(busy=false) }
+            if(outcome!=null) recordAction(text,outcome) else send(text)
+        }
+    }
+    private suspend fun interpret(text: String, context: String): VoiceCommand? {
+        val runtime=CoachEngine.acquire(model,getApplication()) { step -> mutable.update { it.copy(status=step) } }
+        currentCoroutineContext().ensureActive()
+        val started=SystemClock.elapsedRealtime()
+        runtime.start(CoachKnowledge.intentPrompt(text,context))
+        val output=ByteArrayOutputStream()
+        var tokens=0
+        while(tokens<48) {
+            currentCoroutineContext().ensureActive()
+            val piece=runtime.next() ?: break
+            output.write(piece); tokens++
+            if(piece.contains('}'.code.toByte())) break
+        }
+        val json=CoachKnowledge.INTENT_PREFIX+output.toString("UTF-8")
+        val command=VoiceCommands.fromIntent(json)
+        Log.i("CalicoCoach","intent=${json.replace('\n',' ').take(200)} -> ${command?.action} tokens=$tokens ms=${SystemClock.elapsedRealtime()-started}")
+        return command
     }
     fun send(question: String, planRequest: Boolean=false) {
         val text = question.trim()
