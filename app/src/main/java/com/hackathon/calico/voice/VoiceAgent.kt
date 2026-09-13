@@ -138,11 +138,26 @@ object VoiceAgent {
     fun intentContext(activity: Activity): String =
         workoutFor(target(activity))?.let { "A workout is open. ${it.voiceControl("status")}" } ?: "No workout is open."
     /** Runs one command, from the parser or from the model, and returns what to say about it. */
+    private var announced: String? = null
+    /**
+     * A screen change kills the voice sheet's speech mid-word, so the workout screen reads its
+     * own start line from the intent. The sheet asks here before speaking the same text and
+     * stays quiet if the next screen has taken it.
+     */
+    fun claimAnnouncement(text: String): Boolean = (announced==text).also { if(it) announced=null }
     fun execute(activity: Activity, command: VoiceCommand): String? {
         if(activity.isDestroyed || activity.isFinishing) return "That screen has closed. Nothing was changed."
         val host=target(activity)
         val workout=workoutFor(host)
         fun launch(intent: Intent) { activity.startActivity(intent); if(activity is VoiceAgentActivity) activity.finish() }
+        fun goal(step: Step)="${step.target} ${if(step.exercise.holdSec>0) "seconds" else "reps"}"
+        /** A routine is named and its first exercise read out, so the user knows what to get into position for. */
+        fun startRoutine(steps: List<Step>, name: String): String {
+            val announcement="Starting $name."+(steps.firstOrNull()?.let { " First up, ${it.exercise.label}, ${goal(it)}." } ?: "")
+            announced=announcement
+            launch(Intent(activity,WorkoutActivity::class.java).putExtra("routine",steps.encode()).putExtra("announce",announcement))
+            return announcement
+        }
         when(command.action) {
             "pause", "resume", "skip", "end", "restart", "restart_session", "record", "record_stop", "status" -> {
                 if(workout!=null) {
@@ -150,10 +165,7 @@ object VoiceAgent {
                         launch(Intent(activity,WorkoutActivity::class.java).addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
                     return workout.voiceControl(command.action)
                 }
-                if(command.action=="resume") {
-                    launch(Intent(activity,WorkoutActivity::class.java).putExtra("routine",Progress(activity).todayPlan.encode()))
-                    return "Starting today's workout."
-                }
+                if(command.action=="resume") return startRoutine(Progress(activity).todayPlan,"today's workout")
                 return if(command.action in setOf("pause","end")) "No workout is running. You're already stopped." else "Start a workout to use that control."
             }
             "target" -> return workout?.voiceTarget(command.target!!,command.label) ?: "Open a workout before changing its target."
@@ -170,17 +182,25 @@ object VoiceAgent {
                     if(command.action=="exercise") return workout.voiceExercise(command.exercise!!,command.target,start=true)
                     return "End this workout before starting a different saved session."
                 }
-                val steps=when(command.action) {
-                    "today" -> Progress(activity).todayPlan
-                    "exercise" -> listOf(Step(command.exercise!!,command.target ?: if(command.exercise.holdSec>0) command.exercise.holdSec else 10))
+                // The line names what was asked for, so "jumping jacks" is heard in full.
+                return when(command.action) {
+                    "today" -> startRoutine(Progress(activity).todayPlan,"today's workout")
+                    "exercise" -> {
+                        val exercise=command.exercise!!
+                        val step=Step(exercise,command.target ?: if(exercise.holdSec>0) exercise.holdSec else 10)
+                        val announcement="Starting ${exercise.label}, ${goal(step)}."
+                        announced=announcement
+                        launch(Intent(activity,WorkoutActivity::class.java).putExtra("routine",listOf(step).encode()).putExtra("announce",announcement))
+                        announcement
+                    }
                     else -> {
                         val label=command.label.removeSuffix(" day")
-                        LEVELS.firstOrNull { VoiceCommands.normalize(it.title)==label }?.steps
-                            ?: SPLITS.firstOrNull { VoiceCommands.normalize(it.title).removeSuffix("s")==label.removeSuffix("s") }?.steps
-                            ?: return "I couldn't find that session. Say start a workout for today's plan, or name an exercise."
+                        val level=LEVELS.firstOrNull { VoiceCommands.normalize(it.title)==label }
+                        val split=SPLITS.firstOrNull { VoiceCommands.normalize(it.title).removeSuffix("s")==label.removeSuffix("s") }
+                        val steps=level?.steps ?: split?.steps ?: return "I couldn't find that session. Say start a workout for today's plan, or name an exercise."
+                        startRoutine(steps,level?.title ?: split!!.title)
                     }
                 }
-                launch(Intent(activity,WorkoutActivity::class.java).putExtra("routine",steps.encode())); return "Starting your session."
             }
             "demo" -> {
                 val exercise=command.exercise ?: workout?.voiceDemoExercise()

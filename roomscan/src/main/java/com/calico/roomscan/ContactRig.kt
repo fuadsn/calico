@@ -76,6 +76,10 @@ class ContactRig(private val model: GltfModel, private val exercise: String, ref
         flight = ExerciseMotion.flight(exercise, seconds, duration)
         phase = ExerciseMotion.phase(seconds, duration)
         val g = rig.globals
+        // High-knees is a stationary drill. Alternating foot contacts can otherwise introduce
+        // tiny lateral IK corrections that accumulate into visible walking/drift over a loop.
+        val lockedHipX = if (exercise == "HIGH_KNEES" && rig.hipsNode >= 0) g[rig.hipsNode][12] else 0f
+        val lockedHipZ = if (exercise == "HIGH_KNEES" && rig.hipsNode >= 0) g[rig.hipsNode][14] else 0f
         if (raised && support != null) adaptSupports(g, support)
         if (exercise == "JUMPING_JACK" || exercise == "LUNGE") {
             rig.ground()
@@ -121,6 +125,20 @@ class ContactRig(private val model: GltfModel, private val exercise: String, ref
         for (c in selected) {
             solve(g, c, endTarget(c))
             orient(g, c)
+        }
+        if (exercise == "HIGH_KNEES" && rig.hipsNode >= 0) {
+            val correction = floatArrayOf(
+                lockedHipX - g[rig.hipsNode][12],
+                0f,
+                lockedHipZ - g[rig.hipsNode][14],
+            )
+            translate(g, correction)
+            // Move the active contact targets with the same correction so the lock does not
+            // leave a several-millimetre residual that would make the foot visibly pop.
+            for (c in selected) {
+                c.target[0] += correction[0]
+                c.target[2] += correction[2]
+            }
         }
     }
 

@@ -38,10 +38,13 @@ fun WorkoutVoiceOrb(modifier: Modifier=Modifier,onDismiss: ()->Unit) {
     var waitingForCoach by remember { mutableStateOf(false) }
     // An answer that had already finished before the orb opened must not be replayed.
     val restored=remember { state.speech?.takeIf { it.done }?.turn }
+    var heard by remember { mutableStateOf(false) }
+    var listenAgain by remember { mutableStateOf(false) }
     val voice=remember(activity) { CoachVoice(activity) { question ->
+        heard=true
         val result=VoiceAgent.dispatch(activity,question)
         if(result!=null) { coach.recordAction(question,result); answer=result; turn++; waitingForCoach=false }
-        else if(VoiceCommands.normalize(question) in setOf("calico","hey calico")) { answer="I'm listening."; turn++ }
+        else if(VoiceCommands.normalize(question) in setOf("calico","hey calico")) { answer="I'm listening."; turn++; heard=false; listenAgain=true }
         else { waitingForCoach=true; coach.ask(question,VoiceAgent.intentContext(activity)) { VoiceAgent.execute(activity,it) } }
     } }
     val taps=remember { TapGate() }
@@ -66,8 +69,17 @@ fun WorkoutVoiceOrb(modifier: Modifier=Modifier,onDismiss: ()->Unit) {
     LaunchedEffect(turn,voice.speechReady) {
         if(turn>0 && answer.isNotBlank() && voice.speechReady) { voice.speak(answer); spoken=true }
     }
+    // One request per wake word: the orb leaves once its reply is spoken, and Calico's wake
+    // listening resumes as it closes. Only "Calico" on its own keeps the microphone open.
     LaunchedEffect(spoken,voice.speaking,state.busy) {
-        if(spoken && !voice.speaking && !state.busy) { delay(500); voice.listen() }
+        if(spoken && !voice.speaking && !state.busy) {
+            delay(500)
+            if(listenAgain) { listenAgain=false; spoken=false; voice.listen() } else dismiss()
+        }
+    }
+    // Nothing said after waking: leave rather than sit on the microphone through the workout.
+    LaunchedEffect(heard,listenAgain) {
+        if(!heard) { delay(12000); if(!heard) dismiss() }
     }
     LaunchedEffect(voice.error) {
         if(voice.error!=null) { delay(5000); dismiss() }

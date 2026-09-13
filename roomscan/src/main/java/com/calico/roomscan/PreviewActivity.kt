@@ -147,7 +147,7 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         applyWindowInsets()
         ViewMotion.riseIn(actionBar)
 
-        if (figure == null) Log.w(TAG, "No rigged model loaded, falling back to the block figure")
+        if (figure == null) Log.w(TAG, "No rigged model loaded, falling back to the pose skeleton")
     }
 
     private fun startWorkout() {
@@ -279,8 +279,20 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         grantResults: IntArray,
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        // Without the camera the demonstration still works, just without the room behind it.
-        if (requestCode == CAMERA_REQUEST) postHint(getString(R.string.preview_no_ar))
+        if (requestCode != CAMERA_REQUEST) return
+        // Permission callbacks arrive while the activity is already resumed. Start AR here
+        // instead of waiting for a second lifecycle transition (which many devices never send).
+        if (grantResults.firstOrNull() == PackageManager.PERMISSION_GRANTED) {
+            createSession()
+            arMode = session != null
+            viewportChanged = true
+            depthSurfaces.reset()
+            surfaceView.onResume()
+        } else {
+            // Without the camera the demonstration still works, just without the room behind it.
+            arMode = false
+            postHint(getString(R.string.preview_no_ar))
+        }
     }
 
     override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
@@ -455,7 +467,7 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
             RoomSession.selectedAnchor?.takeIf { saved ->
                 saved.trackingState == TrackingState.TRACKING && floors.any { plane ->
                     kotlin.math.abs(plane.centerPose.ty() - saved.pose.ty()) < 0.15f && plane.isPoseInPolygon(saved.pose)
-                }
+                } && horizontalDistance(frame.camera.pose.tx(), frame.camera.pose.tz(), saved.pose.tx(), saved.pose.tz()) >= MIN_SPAWN_DISTANCE_M
             }?.let {
                 anchor = session?.createAnchor(it.pose)
                 interaction.reset()
@@ -475,7 +487,7 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
             val hit = rays.firstNotNullOfOrNull { ray ->
                 frame.hitTest(ray[0], ray[1]).firstOrNull { hit ->
                     val plane = hit.trackable as? Plane
-                    hit.distance in 0.25f..5f && plane in floors &&
+                    hit.distance in MIN_SPAWN_DISTANCE_M..5f && plane in floors &&
                         plane?.isPoseInPolygon(hit.hitPose) == true &&
                         hit.hitPose.ty() < frame.camera.pose.ty()
                 }
@@ -528,7 +540,9 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         interactive: Boolean = true) {
         Matrix.perspectiveM(projectionMatrix, 0, 45f, aspect, NEAR_PLANE_M, FAR_PLANE_M)
         val angle = 0.35f
-        val radius = ORBIT_RADIUS_M / aspect.coerceAtMost(1f).coerceAtLeast(0.2f)
+        // Keep a stable physical camera distance. Scaling radius by inverse aspect makes
+        // portrait and inset views pull several metres back, leaving the avatar tiny.
+        val radius = ORBIT_RADIUS_M
         Matrix.setLookAtM(
             viewMatrix, 0,
             sin(angle) * radius, ORBIT_HEIGHT_M, cos(angle) * radius,
@@ -587,11 +601,20 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         const val NEAR_PLANE_M = 0.1f
         const val FAR_PLANE_M = 100f
 
+        /** Keep the life-size avatar out of the user's personal space on first placement. */
+        const val MIN_SPAWN_DISTANCE_M = 1.5f
+
         /** The app's #292929 ground. */
         const val BACKDROP = 0.161f
         const val ORBIT_RADIUS_M = 3.4f
         const val ORBIT_HEIGHT_M = 1.4f
         const val LOOK_AT_HEIGHT_M = 0.85f
         const val TURNTABLE_DEG_PER_S = 18f
+    }
+
+    private fun horizontalDistance(x0: Float, z0: Float, x1: Float, z1: Float): Float {
+        val dx = x1 - x0
+        val dz = z1 - z0
+        return kotlin.math.sqrt(dx * dx + dz * dz)
     }
 }

@@ -154,6 +154,8 @@ class CoachVoice(private val context: Context, private val onQuestion: (String) 
     fun speak(answer: String) {
         if(closed) return
         openTurn()
+        // The workout screen that is opening reads this line itself; this screen is about to close.
+        if(com.hackathon.calico.voice.VoiceAgent.claimAnnouncement(answer)) { streamOpen=false; updateSpeaking(); return }
         if(!speechReady) { error="Offline speech output isn't ready. Your answer is shown below."; return }
         val queuedOk=enqueue(answer)
         streamOpen=false
