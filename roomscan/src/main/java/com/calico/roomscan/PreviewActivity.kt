@@ -602,7 +602,7 @@ class PreviewActivity : Activity(), GLSurfaceView.Renderer {
         const val FAR_PLANE_M = 100f
 
         /** Keep the life-size avatar out of the user's personal space on first placement. */
-        const val MIN_SPAWN_DISTANCE_M = 0.9f
+        const val MIN_SPAWN_DISTANCE_M = 1.5f
 
         /** The app's #292929 ground. */
         const val BACKDROP = 0.161f
