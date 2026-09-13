@@ -72,19 +72,36 @@ object VoiceAgent {
     fun paused(activity: Activity) { if(foreground.get()===activity) { foreground.clear(); refresh() } }
     fun voiceOpened() { voiceUsers++; refresh() }
     fun voiceClosed() { voiceUsers=(voiceUsers-1).coerceAtLeast(0); refresh() }
+    private var listening=false
+    private var pending: Runnable?=null
+    /**
+     * Lifecycle events arrive in bursts (a sheet closing, its activity finishing, the home screen
+     * resuming), so the decision is debounced and the listener is only stopped or started when
+     * the wanted state actually changes. Every needless restart dropped about a second of audio.
+     */
     private fun refresh() {
-        wake.stop()
-        val ticket=++restart
-        if(!enabled) { status="Hands-free off"; return }
-        if(voiceUsers>0 || foreground.get()==null || foreground.get() is VoiceAgentActivity) { status="Wake listening paused"; return }
-        if(app.checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED) { status="Microphone permission needed"; return }
+        pending?.let(main::removeCallbacks)
+        val r=Runnable { pending=null; apply() }
+        pending=r; main.postDelayed(r,400)
+    }
+    private fun apply() {
+        val front=foreground.get()
+        val want=when {
+            !enabled -> { status="Hands-free off"; false }
+            voiceUsers>0 || front==null || front is VoiceAgentActivity -> { status="Wake listening paused"; false }
+            app.checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED -> { status="Microphone permission needed"; false }
+            else -> true
+        }
+        if(!want) { if(listening) { wake.stop(); listening=false }; return }
+        if(listening) return
         // Load the model while the user is still talking, so the first question answers at once.
         com.hackathon.calico.coach.CoachEngine.prewarm(app)
         status="Starting Calico wake listening…"
-        main.postDelayed({ if(ticket==restart) wake.start({ keyword ->
-            acceptKeyword(keyword)
-        }, { error -> status="Hands-free stopped: $error. Turn it off and on to retry." },
-            { if(ticket==restart) status="Say Calico · listening on this phone" }) },500)
+        listening=true
+        val ticket=++restart
+        wake.start({ keyword -> listening=false; acceptKeyword(keyword) },
+            { error -> listening=false; status="Hands-free stopped: $error. Turn it off and on to retry." },
+            { if(ticket==restart) status="Say Calico · listening on this phone" })
     }
     fun acceptKeyword(keyword: String) {
         val activity=foreground.get() ?: return
