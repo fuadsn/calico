@@ -56,7 +56,7 @@ class WakeDetector(private val context: Context) {
                     // Automatic gain: a quiet or distant voice is lifted toward a healthy level before spotting.
                     // Below the noise floor nothing is boosted, or amplified room noise fires the wake word.
                     val peak=(0 until n).maxOf { kotlin.math.abs(buffer[it].toInt()) }/32768f
-                    val wanted=if(peak<0.05f) 1f else (0.6f/peak).coerceIn(1f,4f)
+                    val wanted=if(peak<0.03f) 1f else (0.6f/peak).coerceIn(1f,6f)
                     gain=gain*0.7f+wanted*0.3f
                     val samples=FloatArray(n) { (buffer[it]/32768f*gain).coerceIn(-1f,1f) }
                     stream.acceptWaveform(samples,16000)
