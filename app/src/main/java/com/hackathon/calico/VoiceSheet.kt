@@ -87,7 +87,7 @@ private fun VoiceContent(autoListen: Boolean, onDismiss: () -> Unit) {
     fun microphone() {
         if(!taps.accept(android.os.SystemClock.elapsedRealtime()) || voice.finalizing) return
         if(voice.listening) voice.finishListening()
-        else if(voice.speaking || state.busy) stop()
+        else if(voice.starting || voice.speaking || state.busy) stop()
         else {
             conversationActive=autoListen; commandAnswer=null; commandQuestion=null
             typing=false; seconds=0; permissionError=null
@@ -97,8 +97,8 @@ private fun VoiceContent(autoListen: Boolean, onDismiss: () -> Unit) {
     }
     LaunchedEffect(autoListen) { if(autoListen) { delay(250); microphone() } }
     LaunchedEffect(commandTurn,voice.speechReady) { if(voice.speechReady) commandAnswer?.let(voice::speak) }
-    LaunchedEffect(conversationActive,voice.speaking,voice.listening,voice.finalizing,state.busy,pendingSpeech,commandAnswer,state.completedAnswer) {
-        if(conversationActive && !voice.speaking && !voice.listening && !voice.finalizing && !state.busy && !pendingSpeech && voice.speechReady &&
+    LaunchedEffect(conversationActive,voice.speaking,voice.starting,voice.listening,voice.finalizing,voice.error,state.busy,pendingSpeech,commandAnswer,state.completedAnswer) {
+        if(conversationActive && !voice.speaking && !voice.starting && !voice.listening && !voice.finalizing && voice.error==null && !state.busy && !pendingSpeech && voice.speechReady &&
             (commandAnswer!=null || state.completedAnswer!=null)) {
             delay(700)
             if(activity.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) voice.listen()
@@ -134,7 +134,7 @@ private fun VoiceContent(autoListen: Boolean, onDismiss: () -> Unit) {
     }
     val question=commandQuestion ?: state.messages.lastOrNull { it.user }?.text
     val answer=commandAnswer ?: state.messages.lastOrNull { !it.user }?.text.orEmpty()
-    val active=voice.listening || voice.speaking || state.busy
+    val active=voice.starting || voice.listening || voice.speaking || state.busy
     Column(Modifier.fillMaxSize().background(Bg)
         .clickable(remember { MutableInteractionSource() },null) {}.safeDrawingPadding().imePadding()) {
         Column(Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal=28.dp),
@@ -153,6 +153,7 @@ private fun VoiceContent(autoListen: Boolean, onDismiss: () -> Unit) {
                     modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(20.dp),maxLines=5,enabled=!state.busy)
             } else {
                 val mainText=when {
+                    voice.starting -> "Starting microphone…"
                     voice.listening -> voice.transcript.ifBlank { "Go ahead, I'm listening" }
                     state.busy -> answer.ifBlank { "Let me think…" }
                     answer.isNotBlank() -> answer
@@ -164,7 +165,7 @@ private fun VoiceContent(autoListen: Boolean, onDismiss: () -> Unit) {
             Spacer(Modifier.height(38.dp))
             SpeechWave(voice.listening,voice.speaking || state.busy,voice.level)
             Spacer(Modifier.height(18.dp))
-            Text(when { voice.listening -> "Listening…"; voice.speaking -> "Speaking…"; state.busy -> "Thinking…"; else -> "Your offline coach" },
+            Text(when { voice.starting -> "Starting microphone…"; voice.listening -> "Listening…"; voice.speaking -> "Speaking…"; state.busy -> "Thinking…"; else -> "Your offline coach" },
                 fontSize=12.sp,color=Muted)
             listOfNotNull(permissionError,voice.error,state.error).distinct().forEach {
                 Text(it,color=MaterialTheme.colorScheme.error,textAlign=TextAlign.Center,modifier=Modifier.padding(top=14.dp))

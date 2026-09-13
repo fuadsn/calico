@@ -9,6 +9,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Mic
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.Stop
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -70,6 +71,7 @@ fun WorkoutVoiceOrb(modifier: Modifier=Modifier,onDismiss: ()->Unit) {
             Text("Calico",style=MaterialTheme.typography.labelMedium,color=Accent)
             val caption=when {
                 voice.error!=null -> voice.error!!
+                voice.starting -> "Starting microphone…"
                 voice.finalizing -> "Finishing…"
                 voice.listening -> voice.transcript.ifBlank { "Listening…" }
                 waitingForCoach || state.busy -> "Thinking…"
@@ -82,13 +84,14 @@ fun WorkoutVoiceOrb(modifier: Modifier=Modifier,onDismiss: ()->Unit) {
             Surface(onClick={
                 if(taps.accept(android.os.SystemClock.elapsedRealtime()) && !voice.finalizing) {
                     if(voice.listening) voice.finishListening()
+                    else if(voice.starting) voice.stop()
                     else { coach.stop(); waitingForCoach=false; voice.listen() }
                 }
             },enabled=!voice.finalizing,shape=CircleShape,color=Accent,
                 shadowElevation=6.dp,modifier=Modifier.size(56.dp).scale(1f+if(voice.listening) voice.level*0.08f else 0f)) {
                 Box(contentAlignment=Alignment.Center) {
-                    Icon(if(voice.listening) Icons.Outlined.Check else Icons.Outlined.Mic,
-                        if(voice.listening) "Finish command" else "Listen for command",tint=OnAccent)
+                    Icon(if(voice.listening) Icons.Outlined.Check else if(voice.starting) Icons.Outlined.Stop else Icons.Outlined.Mic,
+                        if(voice.listening) "Finish command" else if(voice.starting) "Stop microphone" else "Listen for command",tint=OnAccent)
                 }
             }
             IconButton(onClick={ dismiss() },modifier=Modifier.size(40.dp)) {
