@@ -20,6 +20,17 @@ class VoiceCommandTest {
         assertNull(VoiceCommands.similarLabel("cleer",setOf("clear")))
         assertNull(VoiceCommands.similarLabel("rate",setOf("late","date")))
     }
+    @Test fun bodyPartsPickSplitsAndWakeSpellingsMatch() {
+        for((text,title) in listOf("let's do an arm workout today" to "Push","chest day" to "Push","train my abs" to "Core",
+                "start a leg workout" to "Legs","time for some cardio" to "Cardio","I want to do some stretching" to "Stretch"))
+            assertEquals(text,title,VoiceCommands.sessionFor(VoiceCommands.parse(text)!!.label))
+        assertEquals("Push",VoiceCommands.sessionFor("Arm Workout"))
+        assertNull(VoiceCommands.sessionFor("hello"))
+        assertNull(VoiceCommands.parse("my back hurts"))
+        assertEquals("back",VoiceCommands.parse("go back")?.action)
+        assertTrue(VoiceCommands.isWakeMention("hey kalico"))
+        assertEquals("today",VoiceCommands.parse("Kalico start a workout")?.action)
+    }
     @Test fun globalExitWakeResetAndDemoModesAreUnambiguous() {
         for(text in listOf("close","stop this","please exit from AR","quit Calico now","leave this page"))
             assertEquals(text,"exit",VoiceCommands.parse(text)?.action)

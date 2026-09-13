@@ -194,9 +194,9 @@ object VoiceAgent {
                         announcement
                     }
                     else -> {
-                        val label=command.label.removeSuffix(" day")
-                        val level=LEVELS.firstOrNull { VoiceCommands.normalize(it.title)==label }
-                        val split=SPLITS.firstOrNull { VoiceCommands.normalize(it.title).removeSuffix("s")==label.removeSuffix("s") }
+                        val title=VoiceCommands.sessionFor(command.label)   // titles, or body parts like "arm workout"
+                        val level=LEVELS.firstOrNull { it.title==title }
+                        val split=SPLITS.firstOrNull { it.title==title }
                         val steps=level?.steps ?: split?.steps ?: return "I couldn't find that session. Say start a workout for today's plan, or name an exercise."
                         startRoutine(steps,level?.title ?: split!!.title)
                     }

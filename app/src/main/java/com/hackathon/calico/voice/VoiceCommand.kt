@@ -1,6 +1,8 @@
 package com.hackathon.calico.voice
 
 import com.hackathon.calico.Exercise
+import com.hackathon.calico.LEVELS
+import com.hackathon.calico.SPLITS
 
 /** [expand] asks a demo to open with the 3D model already at full size rather than in the corner. */
 data class VoiceCommand(val action: String, val exercise: Exercise? = null, val target: Int? = null,
@@ -8,6 +10,8 @@ data class VoiceCommand(val action: String, val exercise: Exercise? = null, val 
 
 /** Commands are explicit app actions. The model may pick one from the fixed list, never write one. */
 object VoiceCommands {
+    /** How the recognizer tends to spell the name. */
+    private const val NAME="(?:calico|kalico|callico|calliko|kaliko|kalliko|calicko|calika|cali co|kali co|khalico)"
     fun normalize(text: String) = text.lowercase().replace('-', ' ').replace(Regex("[^a-z0-9 ]"), " ").replace(Regex("\\s+"), " ").trim()
 
     /**
@@ -40,7 +44,7 @@ object VoiceCommands {
     }
 
     /** Saying the name on its own is a reset: drop whatever came before and listen again. */
-    private val wake = Regex("^(hey |hi |ok |okay |yo )?(calico|calico calico)( again| are you there| you there| listen( again)?| listening| hello| hi| yes)?$")
+    private val wake = Regex("^(hey |hi |ok |okay |yo )?($NAME|$NAME $NAME)( again| are you there| you there| listen( again)?| listening| hello| hi| yes)?$")
     fun isWakeMention(raw: String) = wake.matches(normalize(raw))
 
     /** Said on their own these always mean "get me out of here", whatever screen is open. */
@@ -56,7 +60,7 @@ object VoiceCommands {
         var text = normalize(raw)
         if (Regex("\\b(don t|do not|never|should i|how do i|when should|why)\\b").containsMatchIn(text)) return null
         repeat(6) {
-            text = text.replace(Regex("^(hey|okay|ok|calico|please|can you|can we|could you|would you|will you|i want you to|i want to|i would like to|let s|lets|just)\\s+"), "")
+            text = text.replace(Regex("^(hey|okay|ok|$NAME|please|can you|can we|could you|would you|will you|i want you to|i want to|i would like to|let s|lets|just)\\s+"), "")
                 .replace(Regex("\\s+(please|for me|right now|now|thanks)$"), "")
         }
         text = text.replace("work out", "workout").replace("work outs", "workouts")
@@ -159,10 +163,30 @@ object VoiceCommands {
             if(text.startsWith("start ") || text.startsWith("begin ")) return VoiceCommand("level",label=text.substringAfter(' ').removeSuffix(" session").removeSuffix(" workout"))
             if(wantsDemo || wantsAr) return VoiceCommand("demo",expand=wantsDemo && !wantsAr)
         }
+        // "chest day", "arm workout", "train my abs": a body part plus a session word or a starting verb picks the split.
+        if(Regex("\\b(workout|session|day|training|routine|exercises|split)\\b").containsMatchIn(text) ||
+            Regex("^(start|begin|do|train|work|hit|give me|want|time for|go for)\\b").containsMatchIn(text))
+            sessionFor(text)?.let { return VoiceCommand("level",label=normalize(it)) }
         // A phrase one or two letters away from a real command is almost always that command.
         similarLabel(text, actions.keys)?.let { match -> return VoiceCommand(actions.getValue(match)) }
         similarLabel(text, exits)?.let { return VoiceCommand("exit") }
         return null
+    }
+
+    private val bodyParts=listOf(
+        "Push" to "chest|arms?|shoulders?|triceps|upper body|push(?:ing)?|pecs",
+        "Pull" to "back|biceps|lats|pull(?:ing)?",
+        "Legs" to "legs?|lower body|glutes|quads|thighs|calves|booty",
+        "Core" to "core|abs|ab|stomach|belly|six pack|obliques",
+        "Cardio" to "cardio|hiit|conditioning|fat burn|sweat|endurance|stamina",
+        "Stretch" to "stretch(?:ing|es)?|flexibility|mobility|cool ?down|recovery",
+    )
+    /** A level or split title named in [raw], directly or by body part ("arm workout" is Push). */
+    fun sessionFor(raw: String): String? {
+        val text=normalize(raw)
+        LEVELS.firstOrNull { normalize(it.title) in text }?.let { return it.title }
+        SPLITS.firstOrNull { Regex("\\b${normalize(it.title)}s?\\b").containsMatchIn(text) }?.let { return it.title }
+        return bodyParts.firstOrNull { (_,words) -> Regex("\\b(?:$words)\\b").containsMatchIn(text) }?.first
     }
 
     private fun distance(a: String, b: String): Int {

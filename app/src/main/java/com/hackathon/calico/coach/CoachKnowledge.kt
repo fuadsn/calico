@@ -80,6 +80,7 @@ Actions:
 Rep exercises: $reps
 Timed holds, unit seconds: $holds
 Sessions: $sessions
+Body parts pick a session: chest, arms, shoulders are Push; back, biceps are Pull; legs, glutes are Legs; abs, core are Core; cardio is Cardio; stretching, mobility are Stretch.
 State: $state
 Rules: use the exact NAME and TITLE spellings, mapping words like push-ups to PUSHUP. Numbers may be words. One action only. Only choose an app action when the request clearly asks for it; otherwise question."""
         return "<|im_start|>system\n${clean(system)}<|im_end|>\n<|im_start|>user\n${clean(request.take(500))}<|im_end|>\n<|im_start|>assistant\n$INTENT_PREFIX"
