@@ -129,8 +129,18 @@ private fun VoiceContent(autoListen: Boolean, onDismiss: () -> Unit) {
         }
     }
     LaunchedEffect(voice.listening) { while(voice.listening) { delay(1000); seconds++ } }
+    // An answer that had already finished before this screen opened must not be replayed.
+    val restored=remember { state.speech?.takeIf { it.done }?.turn }
+    // Reads each sentence as the model finishes it, so the answer starts aloud in well under a second.
+    LaunchedEffect(state.speech,voice.speechReady) {
+        state.speech?.takeIf { it.turn!=restored }?.let { voice.speakStreaming(it.turn,it.text,it.done) }
+    }
     LaunchedEffect(state.busy,state.completedAnswer,pendingSpeech) {
-        if(pendingSpeech && !state.busy) { pendingSpeech=false; state.completedAnswer?.let(voice::speak) }
+        if(pendingSpeech && !state.busy) {
+            pendingSpeech=false
+            // A quick reply never streamed, so it is read in one go.
+            if(state.speech==null) state.completedAnswer?.let(voice::speak)
+        }
     }
     val question=commandQuestion ?: state.messages.lastOrNull { it.user }?.text
     val answer=commandAnswer ?: state.messages.lastOrNull { !it.user }?.text.orEmpty()

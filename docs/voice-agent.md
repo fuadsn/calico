@@ -70,6 +70,25 @@ a skip. A paused workout stays paused unless the user requests resume.
 AR scanner/session/preview remain at `69fc362`. This feature changes no AR
 placement, rig or scanning files.
 
+## Spoken answers start before the model finishes
+
+`CoachViewModel` publishes each answer as a `CoachSpeech(turn, text, done)` while
+it is still being generated. `CoachVoice.speakStreaming` keeps a cursor into that
+text, hands every newly finished sentence to Android text-to-speech with
+`QUEUE_ADD`, and reports `speaking` until both the queue has drained and the turn
+is closed, so a drained queue mid-answer does not reopen the microphone.
+`CoachReplyPolicy.speakableCut` finds the sentence boundary and ignores a dot
+after a digit or a single letter, which keeps list markers and abbreviations from
+being read as endings. A stopped turn is remembered, so a repeated state update
+cannot restart speech the user just cancelled. The microphone side needs no
+streaming: on the iQOO 15 the recognizer's final result lands 1-2 ms after
+end-of-speech, and partial words already show while the user talks.
+
+Only model answers stream. Command replies, quick replies and stored answers are
+short and still spoken in one call, so `CoachState.speech` stays null for them.
+`CoachVoice` logs `firstSentenceMs` (time from the turn opening to the first
+utterance being queued) for measuring this on a device.
+
 ## Assets and validation
 
 The build downloads the pinned Android AAR and verifies SHA-256

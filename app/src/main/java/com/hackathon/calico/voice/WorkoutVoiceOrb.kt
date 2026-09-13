@@ -34,8 +34,10 @@ fun WorkoutVoiceOrb(modifier: Modifier=Modifier,onDismiss: ()->Unit) {
     val state by coach.state.collectAsState()
     var answer by remember { mutableStateOf("") }
     var turn by remember { mutableIntStateOf(0) }
-    var spokenTurn by remember { mutableIntStateOf(-1) }
+    var spoken by remember { mutableStateOf(false) }
     var waitingForCoach by remember { mutableStateOf(false) }
+    // An answer that had already finished before the orb opened must not be replayed.
+    val restored=remember { state.speech?.takeIf { it.done }?.turn }
     val voice=remember(activity) { CoachVoice(activity) { question ->
         val result=VoiceAgent.dispatch(activity,question)
         if(result!=null) { coach.recordAction(question,result); answer=result; turn++; waitingForCoach=false }
@@ -51,15 +53,21 @@ fun WorkoutVoiceOrb(modifier: Modifier=Modifier,onDismiss: ()->Unit) {
     LaunchedEffect(Unit) { delay(250); voice.listen() }
     LaunchedEffect(waitingForCoach,state.busy,state.completedAnswer,state.error) {
         if(waitingForCoach && !coach.state.value.busy) {
-            answer=coach.state.value.error ?: coach.state.value.completedAnswer ?: "Set up the offline coach for advice. Workout commands are ready."
-            waitingForCoach=false; turn++
+            val settled=coach.state.value
+            answer=settled.error ?: settled.completedAnswer ?: "Set up the offline coach for advice. Workout commands are ready."
+            waitingForCoach=false
+            // A streamed answer was already read sentence by sentence; only speak what wasn't.
+            if(settled.speech==null || settled.error!=null) turn++
         }
     }
-    LaunchedEffect(turn,voice.speechReady) {
-        if(turn>0 && answer.isNotBlank() && voice.speechReady) { voice.speak(answer); spokenTurn=turn }
+    LaunchedEffect(state.speech,voice.speechReady) {
+        state.speech?.takeIf { it.turn!=restored }?.let { voice.speakStreaming(it.turn,it.text,it.done); spoken=true }
     }
-    LaunchedEffect(spokenTurn,voice.speaking) {
-        if(spokenTurn>0 && !voice.speaking) { delay(500); voice.listen() }
+    LaunchedEffect(turn,voice.speechReady) {
+        if(turn>0 && answer.isNotBlank() && voice.speechReady) { voice.speak(answer); spoken=true }
+    }
+    LaunchedEffect(spoken,voice.speaking,state.busy) {
+        if(spoken && !voice.speaking && !state.busy) { delay(500); voice.listen() }
     }
     LaunchedEffect(voice.error) {
         if(voice.error!=null) { delay(5000); dismiss() }
@@ -74,7 +82,7 @@ fun WorkoutVoiceOrb(modifier: Modifier=Modifier,onDismiss: ()->Unit) {
                 voice.starting -> "Starting microphone…"
                 voice.finalizing -> "Finishing…"
                 voice.listening -> voice.transcript.ifBlank { "Listening…" }
-                waitingForCoach || state.busy -> "Thinking…"
+                waitingForCoach || state.busy -> state.speech?.text?.takeIf { it.isNotBlank() } ?: "Thinking…"
                 answer.isNotBlank() -> answer
                 else -> "Starting microphone…"
             }
