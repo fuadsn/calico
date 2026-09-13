@@ -23,7 +23,7 @@ class VoiceDefaultsDeviceTest {
             i.waitForIdleSync()
             i.runOnMainSync { assertNotNull(VoiceButtons.find(home,"voice")); VoiceButtons.find(home,"voice")!!.invoke() }
             i.waitForIdleSync()
-            i.runOnMainSync { assertEquals("Starting your session.",VoiceAgent.dispatch(home,"Could you please start a workout for me")) }
+            i.runOnMainSync { assertTrue(VoiceAgent.dispatch(home,"Could you please start a workout for me")!!.startsWith("Starting today's workout. First up, ")) }
             workout=monitor.waitForActivityWithTimeout(5000) as? WorkoutActivity
             assertNotNull(workout)
             session=WorkoutActivity::class.java.getDeclaredField("coachSession").apply { isAccessible=true }.get(workout) as String

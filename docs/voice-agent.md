@@ -30,8 +30,10 @@ During a workout, Calico opens a 56 dp orb and short caption on the right edge.
 It adds no full-screen window or touch-blocking scrim and does not pause the
 workout merely by opening. The pose camera continues running. Workout spoken
 rep announcements are muted while the orb owns the microphone, avoiding speech
-overlap; counting continues. The orb accepts follow-up commands after its reply
-and closes after silence/error or its close button. Outside workouts, the full
+overlap; counting continues. The orb handles one request per wake word: it closes
+once its reply is spoken, after about twelve seconds with nothing said, on error,
+or from its close button, and wake listening resumes as it closes. Saying only
+"Calico" keeps it listening for the request. Outside workouts, the full
 voice screen remains available.
 
 - `Pause`, `start`, `resume`, `stop workout`: keep the workout on screen. Stop

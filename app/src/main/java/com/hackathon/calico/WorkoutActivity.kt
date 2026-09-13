@@ -257,7 +257,13 @@ class WorkoutActivity : ComponentActivity() {
         enableEdgeToEdge()
         previewView = PreviewView(this)
         overlay = OverlayView(this, null)
-        tts = TextToSpeech(this) { if (it == TextToSpeech.SUCCESS) tts.language = Locale.US }
+        tts = TextToSpeech(this) {
+            if (it == TextToSpeech.SUCCESS) {
+                tts.language = Locale.US
+                // The voice screen that started this workout closes before it can finish the line.
+                if (savedInstanceState == null) intent.getStringExtra("announce")?.let(::say)
+            }
+        }
 
         val single = intent.getStringExtra("exercise")?.let(Exercise::valueOf)
         steps = when {
